@@ -33,7 +33,7 @@ Headers: `x-publishable-api-key: <STOREFRONT_PUBLISHABLE_KEY>`.
 Query used by storefront home page:
 
 ```
-fields=id,title,handle,thumbnail,*variants.calculated_price,+catering_info.*
+fields=id,title,handle,thumbnail,*variants.calculated_price
 region_id=<Polska region id>
 limit=24
 ```
@@ -45,7 +45,42 @@ Contract guarantees relied upon (per product):
 | `title`, `handle`, `thumbnail` | present for every seeded product |
 | `variants[0].calculated_price.calculated_amount` | gross PLN amount (tax-inclusive) |
 | `variants[0].calculated_price.currency_code` | `"pln"` |
-| `catering_info.min_quantity`, `pricing_unit`, `allergens[]`, `ingredients` | present (see [data-model.md](../data-model.md)) |
+
+Catering attributes are **not** requested here — see `/store/catering-info` below.
+Empirically, Medusa's built-in list/retrieve routes serve from the index engine
+(`query.index`), which does not resolve custom module links even once explicitly
+allow-listed via `req.allowed`; only `query.graph` (used server-side, and by the route
+below) does.
+
+## `GET /store/catering-info` (custom, contracts/http-api.md)
+
+Batch-fetches catering attributes for a set of products in one request, keyed by
+product id. No auth beyond the standard publishable-key header.
+
+```
+GET /store/catering-info?product_id=<id1>&product_id=<id2>
+```
+
+(a single comma-separated `product_id=<id1>,<id2>` value also works)
+
+```json
+{
+  "catering_info": {
+    "<id1>": {
+      "id": "cpi_...",
+      "min_quantity": 20,
+      "quantity_step": 10,
+      "pricing_unit": "piece",
+      "ingredients": "...",
+      "allergens": ["gluten", "fish", "milk"],
+      "dietary_tags": []
+    }
+  }
+}
+```
+
+A product with no catering info attached (should not happen for seeded products) is
+simply absent from the map.
 
 ## `GET /store/regions` (Medusa built-in)
 

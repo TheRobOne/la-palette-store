@@ -1,12 +1,13 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import seed from "../../src/scripts/seed"
 
-// contracts/http-api.md: GET /store/products with catering_info + gross PLN price.
+// contracts/http-api.md: GET /store/products (gross PLN price) +
+// GET /store/catering-info (catering attributes for those products).
 medusaIntegrationTestRunner({
   testSuite: ({ api, getContainer }) => {
-    describe("GET /store/products", () => {
-      it("returns seeded products with catering info and gross PLN prices", async () => {
+    describe("GET /store/products + GET /store/catering-info", () => {
+      it("returns seeded products with gross PLN prices and matching catering info", async () => {
         const container = getContainer()
         process.env.APP_ENV = "local"
         await seed({ container } as never)
@@ -25,13 +26,13 @@ medusaIntegrationTestRunner({
           filters: { name: "Polska" },
         })
 
-        const response = await api.get(
-          `/store/products?fields=id,title,handle,thumbnail,*variants.calculated_price,+catering_info.*&region_id=${regions[0].id}&limit=24`,
+        const productsResponse = await api.get(
+          `/store/products?fields=id,title,handle,thumbnail,*variants.calculated_price&region_id=${regions[0].id}&limit=24`,
           { headers: { "x-publishable-api-key": publishableKey } }
         )
 
-        expect(response.status).toEqual(200)
-        const products = response.data.products
+        expect(productsResponse.status).toEqual(200)
+        const products = productsResponse.data.products
         expect(products.length).toBeGreaterThanOrEqual(6)
 
         for (const product of products) {
@@ -42,8 +43,20 @@ medusaIntegrationTestRunner({
           const price = product.variants[0].calculated_price
           expect(price.currency_code).toEqual("pln")
           expect(price.calculated_amount).toBeGreaterThan(0)
+        }
 
-          expect(product.catering_info).toEqual(
+        const productIds = products.map((p: { id: string }) => p.id)
+        const cateringResponse = await api.get(
+          `/store/catering-info?${productIds
+            .map((id: string) => `product_id=${id}`)
+            .join("&")}`,
+          { headers: { "x-publishable-api-key": publishableKey } }
+        )
+
+        expect(cateringResponse.status).toEqual(200)
+        const cateringInfoById = cateringResponse.data.catering_info
+        for (const id of productIds) {
+          expect(cateringInfoById[id]).toEqual(
             expect.objectContaining({
               min_quantity: expect.any(Number),
               pricing_unit: expect.any(String),

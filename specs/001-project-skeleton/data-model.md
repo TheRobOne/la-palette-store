@@ -51,7 +51,8 @@ Most entities are Medusa built-ins configured by the seed. The only custom data 
 
 - Module link `product` ↔ `catering_product_info`: **one-to-one**, deleting a product
   cascades to its catering info.
-- Exposed on Store API products via `fields=+catering_info.*` (see
+- Exposed on the Store API via the dedicated `GET /store/catering-info` batch endpoint,
+  not embedded in `GET /store/products` (research R-06a; see
   [contracts/http-api.md](contracts/http-api.md)).
 
 ### Validation

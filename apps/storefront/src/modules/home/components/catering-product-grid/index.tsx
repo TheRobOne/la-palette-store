@@ -19,7 +19,7 @@ type Product = {
       currency_code: string
     } | null
   }[]
-  catering_info?: CateringInfo | null
+  catering_product_info?: CateringInfo | null
 }
 
 /**
@@ -43,7 +43,7 @@ export default function CateringProductGrid({
       <ul className="grid grid-cols-2 small:grid-cols-3 gap-x-4 gap-y-8">
         {products.map((product) => {
           const price = product.variants?.[0]?.calculated_price
-          const catering = product.catering_info
+          const catering = product.catering_product_info
 
           return (
             <li key={product.id}>

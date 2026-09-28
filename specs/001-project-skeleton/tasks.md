@@ -56,9 +56,9 @@ implemented and verified independently.
 - [X] T007 [P] Write `apps/backend/.env.template` with every backend variable from `specs/001-project-skeleton/contracts/configuration.md` (local defaults filled in, `DATABASE_URL` and DB_* left empty with a comment "Railway dev Postgres — never staging"); no `REDIS_URL`
 - [X] T008 [P] Write `apps/storefront/.env.template` with `MEDUSA_BACKEND_URL=http://localhost:9000`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=` (comment: printed by `pnpm seed`), `NEXT_PUBLIC_BASE_URL=http://localhost:8000`, `NEXT_PUBLIC_DEFAULT_REGION=pl`, `ALLOW_INDEXING=false`
 - [X] T009 Update `apps/backend/medusa-config.ts`: load env with `loadEnv`, validate required variables (`APP_ENV`, `DATABASE_URL`, `MEDUSA_BACKEND_URL`, `STORE_CORS`, `ADMIN_CORS`, `AUTH_CORS`, `JWT_SECRET`, `COOKIE_SECRET`) and throw `Missing required environment variable: <NAME>` for the first missing one; set `projectConfig.databaseDriverOptions` so the pool gives up after 30 s with a clear "database cannot be reached" error, and enable SSL with `rejectUnauthorized: false` only if the Railway proxy requires it (Railway's Postgres image uses a self-signed cert); register no Redis modules; set `workerMode` from `MEDUSA_WORKER_MODE` (default `shared`) and `admin.disable` from `DISABLE_MEDUSA_ADMIN`
-- [ ] T010 Create the untracked `apps/backend/.env` from the template: build `DATABASE_URL` for the Railway **dev** Postgres using the public proxy `switchback.proxy.rlwy.net:45909`, user/password/db from the dev `Postgres` service variables (read via the Railway plugin `list-variables` for env `dev` only), and set `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` to the same proxy values for integration tests; create `apps/storefront/.env` from its template; confirm `git status` does not list either file
+- [X] T010 Create the untracked `apps/backend/.env` from the template: build `DATABASE_URL` for the Railway **dev** Postgres using the public proxy `switchback.proxy.rlwy.net:45909`, user/password/db from the dev `Postgres` service variables (read via the Railway plugin `list-variables` for env `dev` only), and set `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD` to the same proxy values for integration tests; create `apps/storefront/.env` from its template; confirm `git status` does not list either file
 - [X] T011 Implement `/scripts/bootstrap.mjs` (wired to root `pnpm bootstrap`): copy each `apps/*/.env.template` to `.env` when missing, exit with "Set DATABASE_URL in apps/backend/.env (Railway dev Postgres)" if it is empty, then run `pnpm db:migrate` and `pnpm seed`, and print the publishable key hint for `apps/storefront/.env`
-- [ ] T012 Run `pnpm db:migrate` against the dev database and confirm Medusa's core tables are created (connectivity check for T009/T010)
+- [X] T012 Run `pnpm db:migrate` against the dev database and confirm Medusa's core tables are created (connectivity check for T009/T010)
 
 **Checkpoint**: Backend boots against Railway dev Postgres; user stories can start
 
@@ -74,7 +74,7 @@ implemented and verified independently.
 
 - [X] T013 [P] [US1] Integration test `apps/backend/integration-tests/http/status.spec.ts` with `medusaIntegrationTestRunner`: `GET /status` returns `200` and body `{ status: "ok", checks: { database: "ok" } }` per `specs/001-project-skeleton/contracts/http-api.md`
 - [X] T014 [P] [US1] Integration test `apps/backend/integration-tests/http/seed.spec.ts`: running the seed twice leaves exactly one region "Polska", one sales channel "Sklep internetowy", 2 categories and ≥ 6 products whose `handle` starts with `test-`
-- [X] T015 [P] [US1] Integration test `apps/backend/integration-tests/http/store-products.spec.ts`: `GET /store/products?fields=id,title,handle,thumbnail,*variants.calculated_price,+catering_info.*&region_id=<Polska>` with the seeded publishable key returns products with `catering_info.min_quantity`, `pricing_unit`, `allergens`, `ingredients` and `calculated_price.currency_code === "pln"`
+- [X] T015 [P] [US1] Integration test `apps/backend/integration-tests/http/store-products.spec.ts`: `GET /store/products?fields=id,title,handle,thumbnail,*variants.calculated_price,+catering_product_info.*&region_id=<Polska>` with the seeded publishable key returns products with `catering_product_info.min_quantity`, `pricing_unit`, `allergens`, `ingredients` and `calculated_price.currency_code === "pln"`
 - [X] T016 [P] [US1] Module test `apps/backend/src/modules/catering/__tests__/service.spec.ts`: creating catering info with `min_quantity` not a multiple of `quantity_step` is rejected; valid input is stored
 
 ### Implementation for User Story 1
@@ -106,7 +106,7 @@ implemented and verified independently.
 ### Implementation for User Story 2
 
 - [X] T027 [US2] Add admin-user creation to `apps/backend/src/scripts/seed.ts` using Medusa's user + auth identity workflows: `APP_ENV=local` → email `admin@lapalette.local`, password `lapalette-local`; any other `APP_ENV` → require `ADMIN_EMAIL` and `ADMIN_PASSWORD`, else exit non-zero with "ADMIN_EMAIL/ADMIN_PASSWORD required outside local"; idempotent by email
-- [ ] T028 [US2] Verify in Admin (`http://localhost:9000/app`) that region "Polska" is the default with PLN, tax region PL 8% and tax-inclusive PLN prices; edit one "(test)" product price and confirm the storefront shows the new gross price after reload (quickstart V2)
+- [X] T028 [US2] Verify in Admin (`http://localhost:9000/app`) that region "Polska" is the default with PLN, tax region PL 8% and tax-inclusive PLN prices; edit one "(test)" product price and confirm the storefront shows the new gross price after reload (quickstart V2)
 
 **Checkpoint**: US1 + US2 work independently
 

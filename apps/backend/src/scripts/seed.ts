@@ -430,11 +430,12 @@ export default async function seed({ container }: ExecArgs) {
 
     const { data: cateringInfos } = await query.graph({
       entity: "product",
-      fields: ["id", "catering_info.id"],
+      fields: ["id", "catering_product_info.id"],
       filters: { id: productId },
     })
     const hasCateringInfo = Boolean(
-      (cateringInfos[0] as { catering_info?: { id: string } })?.catering_info
+      (cateringInfos[0] as { catering_product_info?: { id: string } })
+        ?.catering_product_info
     )
     if (!hasCateringInfo) {
       const created = await cateringModuleService.createCateringProductInfos({

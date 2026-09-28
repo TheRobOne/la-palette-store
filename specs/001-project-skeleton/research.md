@@ -71,7 +71,7 @@ Redis.
 ## R-05 Catering product attributes
 
 - **Decision**: Custom module `catering` with model `catering_product_info` linked 1:1 to
-  `product` (module link). Store API reads it via `fields=+catering_info.*`.
+  `product` (module link). Store API reads it via `fields=+catering_product_info.*`.
 - **Rationale**: Constitution I (extension via modules/links); agreed home for future
   catering logic (FR-014). Details: [data-model.md](data-model.md).
 - **Alternatives considered**: product `metadata` (untyped, unvalidated).
@@ -86,6 +86,25 @@ Redis.
   `ADMIN_EMAIL`/`ADMIN_PASSWORD` or exits non-zero.
 - **Rationale**: FR-003, FR-004, FR-004a; gross PLN prices (Constitution IV).
 - **Open (non-blocking)**: final VAT mapping confirmed with accountant in catalog feature.
+
+## R-06a Catering info via a dedicated store endpoint (implementation finding)
+
+- **Decision**: Catering attributes are fetched from a custom
+  `GET /store/catering-info?product_id=...` route (batch, keyed by product id), not
+  embedded in `GET /store/products` via `+catering_product_info.*` as originally planned.
+- **Rationale**: Verified empirically against the real dev database: Medusa 2.21's
+  built-in `/store/products` list/retrieve routes serve from the index engine
+  (`query.index`, backed by the `product_v1` search index seeded at startup), which does
+  not resolve custom module links — the field stays absent from the response even once
+  explicitly allow-listed via `req.allowed` in a custom middleware (tried and confirmed
+  ineffective). A dedicated route using `query.graph` directly (proven to resolve the link
+  correctly) sidesteps this without touching Medusa's core routing. Not documented
+  anywhere found on docs.medusajs.com.
+- **Cost**: one extra request per product-listing page load instead of one combined field;
+  the storefront batches all product ids into a single call, so it stays O(1) requests.
+- **Alternatives considered**: overriding the core `/store/products` route file (higher
+  risk — would need to replicate its pricing/tax/sales-channel middleware chain);
+  registering the link with the index engine (undocumented, higher risk for a skeleton).
 
 ## R-07 Health check
 
