@@ -1,3 +1,35 @@
+<!--
+Sync Impact Report
+==================
+Version change: 1.1.0 → 2.0.0
+Bump rationale: MAJOR — redefines existing rules: tests no longer all run in CI, Redis no
+longer required on staging, mandatory peer review replaced by self-review. Also adds a new
+principle (VII) and new stack constraints.
+
+Modified principles:
+- VI. Tested Critical Commerce Paths — requirements unchanged; integration/E2E tests now run
+  locally against the dev database before merge instead of in CI.
+
+Added principles:
+- VII. Simplicity First
+
+Modified sections:
+- Technology Stack & Constraints — Backend: Redis only in production; new Infrastructure &
+  Hosting (Railway PostgreSQL in all environments, separate dev/staging DBs, no Docker
+  locally, Railway hosting); new Knowledge Sources rule (public Medusa docs + npm only, no
+  paid Medusa services).
+- Development Workflow & Quality Gates — minimal CI without DB/external services; local
+  integration/E2E before merging critical-path changes; self-review with constitution
+  checklist replaces "at least one review"; optional automated code review.
+- Governance — "code review" wording aligned with self-review.
+
+Added sections: none
+Removed sections: none
+
+Follow-up TODOs: none. Note: specs/001-project-skeleton/plan.md & research.md predate this
+amendment (Docker, Redis, DB-backed CI) and must be regenerated with /speckit-plan.
+-->
+
 # La Palette Store Constitution
 
 ## Core Principles
@@ -93,13 +125,34 @@ Rationale: most catering orders are browsed on phones; slow or inaccessible page
 - Custom Medusa modules and workflows MUST have integration tests using Medusa's testing
   tooling; the checkout flow MUST have an end-to-end test against a seeded environment.
 - A change touching a critical path MUST NOT be merged with failing or skipped tests.
+- Integration and end-to-end tests MAY run locally against the dev database instead of in CI
+  (see Development Workflow); they MUST be run and pass before merging any change that
+  touches a critical path, and the result MUST be noted in the change description.
 
 Rationale: a broken checkout or wrong delivery date directly costs money and customer trust.
 
+### VII. Simplicity First
+
+- This is a very small shop developed and operated by one person. Every spec and plan MUST
+  choose the simplest solution that meets the requirements.
+- Every additional service, tool, dependency or infrastructure layer (queues, caches,
+  containers, extra environments, extra CI jobs, abstractions) MUST be justified in the
+  plan's Complexity Tracking with the simpler alternative that was rejected.
+- Features MUST NOT be built for hypothetical future scale; capacity is added when a
+  measured need appears (e.g. Redis at production launch).
+
+Rationale: one developer's time is the scarcest resource; every moving part must pay for
+itself.
+
 ## Technology Stack & Constraints
 
-- **Backend**: Medusa (latest stable v2), Node.js LTS, TypeScript in strict mode, PostgreSQL,
-  Redis for events/cache/workflows in non-development environments.
+- **Backend**: Medusa (latest stable v2), Node.js LTS, TypeScript in strict mode, PostgreSQL.
+  Redis (event bus, workflow engine, locking, cache) is REQUIRED only in production; local
+  development and staging use Medusa's built-in in-memory modules.
+- **Infrastructure & Hosting**: PostgreSQL is hosted on Railway in every environment,
+  including local development. Dev and staging MUST use separate databases, and local
+  development MUST never connect to the staging (or production) database. Docker MUST NOT be
+  required on the developer's machine. Staging (and later production) is hosted on Railway.
 - **Storefront**: Next.js (App Router) based on the official Medusa Next.js storefront,
   consuming the Medusa Store API via the official JS SDK.
 - **Admin**: Medusa Admin, extended with widgets/routes for catering operations (delivery
@@ -125,18 +178,26 @@ Rationale: a broken checkout or wrong delivery date directly costs money and cus
     Tracking and revisited at the next upgrade review.
   - Pre-release versions (alpha, beta, RC, canary) MUST NOT be used in production.
   - Exact versions remain pinned via the lockfile for reproducible builds.
+- **Knowledge sources**: technical decisions about Medusa MUST be based on the public
+  documentation at docs.medusajs.com and the npm registry. Paid Medusa services (e.g. the
+  documentation MCP server) are not used.
 
 ## Development Workflow & Quality Gates
 
 - Every feature follows the Spec Kit flow: specify → (clarify) → plan → tasks → implement.
   Each plan MUST include a Constitution Check against the principles above.
-- All code MUST pass linting, type checking (`tsc --noEmit`) and the test suite in CI before
-  merge.
-- UI changes MUST be reviewed against the design tokens and the reference UX flow; reviewers
-  verify there are no hard-coded brand values.
+- CI MUST stay minimal and MUST NOT require a database or any external service: it runs
+  linting, type checking (`tsc --noEmit`), unit tests and production builds, and all of them
+  MUST pass before merge.
+- Integration tests (Medusa test utilities) and end-to-end tests run locally against the dev
+  database and MUST pass before merging changes that touch critical paths (Principle VI).
+- UI changes MUST be checked against the design tokens and the reference UX flow; the
+  self-review verifies there are no hard-coded brand values.
 - Database schema changes MUST ship as Medusa migrations and be reversible or accompanied by a
   documented rollback plan.
-- Changes are merged via pull request with at least one review.
+- Changes are merged via pull request after a self-review by the developer using a
+  constitution compliance checklist (Principles I–VII, stack and workflow rules). An
+  automated code review MAY be used in addition; it does not replace the self-review.
 
 ## Governance
 
@@ -147,9 +208,9 @@ Rationale: a broken checkout or wrong delivery date directly costs money and cus
 - Versioning follows semantic versioning: MAJOR for removing or redefining a principle, MINOR
   for adding a principle/section or materially expanding guidance, PATCH for clarifications
   and wording.
-- Every plan's Constitution Check and every code review MUST verify compliance; any deviation
+- Every plan's Constitution Check and every self-review MUST verify compliance; any deviation
   MUST be listed in the plan's Complexity Tracking with justification and a simpler
   alternative that was rejected.
 - Compliance is reviewed at each Medusa upgrade and at least once per quarter.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
+**Version**: 2.0.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-09-28
