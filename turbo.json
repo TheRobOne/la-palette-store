@@ -1,0 +1,54 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "APP_ENV",
+    "DATABASE_URL",
+    "DB_HOST",
+    "DB_PORT",
+    "DB_USERNAME",
+    "DB_PASSWORD",
+    "MEDUSA_BACKEND_URL",
+    "STORE_CORS",
+    "ADMIN_CORS",
+    "AUTH_CORS",
+    "JWT_SECRET",
+    "COOKIE_SECRET",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD",
+    "MEDUSA_WORKER_MODE",
+    "DISABLE_MEDUSA_ADMIN",
+    "ALLOW_INDEXING",
+    "NEXT_PUBLIC_MEDUSA_BACKEND_URL",
+    "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_BASE_URL",
+    "NEXT_PUBLIC_DEFAULT_REGION"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", ".medusa/server/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "test:unit": {
+      "outputs": []
+    },
+    "seed": {
+      "outputs": []
+    }
+  }
+}

@@ -120,17 +120,19 @@ in the `staging` environment; the `dev` environment holds only Postgres.
 
 ## External prerequisites
 
-1. Railway project with `dev` Postgres — **needed before local work** (the dev DB URL goes
-   into `apps/backend/.env`).
-2. GitHub remote (not created yet: `gh` missing, SSH key not authorised) — needed for CI
-   and staging.
-3. Railway `staging` services connected to GitHub with "Wait for CI".
+1. Railway project with `dev` Postgres — **created** (`fa8233d4-b8df-4990-b293-88e1da791022`,
+   env `dev`); its connection string still needs to go into the untracked
+   `apps/backend/.env` (T010, blocked on Railway credential access from this session).
+2. GitHub remote — **created** (`https://github.com/TheRobOne/la-palette-store`, public).
+3. Railway `staging` environment + services — **not created yet**: needs `railway login`
+   (CLI) or the dashboard, since neither the Railway MCP plugin nor its AI agent can create
+   a new environment (T047–T050).
 
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | React 18 (not latest 19) in `apps/backend` Admin extensions | `@medusajs/dashboard` 2.21.2 depends on `react@^18.3.1`; extensions share its React | React 19 there breaks Admin (duplicate React); patching Medusa is prohibited |
-| (Conditional) TypeScript 6.x in `apps/backend` | Only if the R-04 gate shows `medusa build` fails on TS 7 | TS 7 would leave the backend unbuildable |
-| (Conditional) Any starter dependency kept below latest major | Only if a bump breaks the Medusa Starter and a fix is disproportionate | Documented per package at implementation time |
+| TypeScript 6.0.3 (not latest 7) in **both** apps | R-04 gate: with TS 7, `medusa lint`/`next lint` crash (`ts-node`/`@typescript-eslint/typescript-estree` read `undefined.Cjs`/`.fileExists` against TS7's changed internals) even though `tsc --noEmit` alone was clean; TS7 anywhere in the pnpm workspace graph poisoned the `@typescript-eslint` build used by the other app too, so both are pinned together | TS 7 leaves `medusa lint` and `next lint` broken; patching `@medusajs/cli`/`ts-node` is out of scope |
+| Next.js 15.5.24 / Tailwind CSS 3 / React 19.0.5 / ESLint 9 kept at their scaffold-pinned versions in `apps/storefront` (not latest majors 16 / 4 / 19.3 / 10) | Bumping any of them is a real migration (Next 16's error-boundary API already changed `reset`→`retry`; `@medusajs/ui-preset` / `tailwindcss-radix` are not confirmed Tailwind-4-ready) — disproportionate for a skeleton feature | Attempting it here risks breaking the official Starter's cart/checkout/account code this feature intentionally does not touch; revisit as a dedicated upgrade (Constitution I) |
 | Railway `dev` environment with its own Postgres | Constitution: separate dev/staging DBs, no Docker locally | Sharing staging DB is forbidden; local Postgres needs extra install |

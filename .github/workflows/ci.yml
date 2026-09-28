@@ -1,0 +1,54 @@
+name: CI
+
+# Constitution v2.0.0 / research R-10: one minimal job, no database and no
+# secrets. Integration and e2e tests run locally against the dev database
+# before merging changes that touch critical paths — not here.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  # Placeholder values only, so `medusa build` can load medusa-config.ts's
+  # required-variable check without needing a real database (contracts/configuration.md).
+  APP_ENV: ci
+  DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+  MEDUSA_BACKEND_URL: http://localhost:9000
+  STORE_CORS: http://localhost:8000
+  ADMIN_CORS: http://localhost:9000
+  AUTH_CORS: http://localhost:8000,http://localhost:9000
+  JWT_SECRET: ci-jwt-secret
+  COOKIE_SECRET: ci-cookie-secret
+  NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
+  NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_ci_placeholder
+  NEXT_PUBLIC_BASE_URL: http://localhost:8000
+  NEXT_PUBLIC_DEFAULT_REGION: pl
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Build
+        run: pnpm build

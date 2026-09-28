@@ -1,0 +1,29 @@
+{
+  "name": "la-palette-store",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "bootstrap": "node ./scripts/bootstrap.mjs",
+    "seed": "pnpm --filter backend run seed",
+    "db:migrate": "pnpm --filter backend exec medusa db:migrate",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "pnpm --filter backend run test:integration:http && pnpm --filter backend run test:integration:modules",
+    "test:e2e": "pnpm --filter storefront run test:e2e",
+    "build": "turbo run build"
+  },
+  "devDependencies": {
+    "@medusajs/eslint-plugin": "2.21.1",
+    "eslint": "^9.39.4",
+    "jiti": "^2.7.0",
+    "prettier": "^3.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "turbo": "^2.0.14"
+  }
+}
