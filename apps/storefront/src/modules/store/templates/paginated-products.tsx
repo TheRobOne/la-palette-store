@@ -21,7 +21,6 @@ export default async function PaginatedProducts({
   collectionId,
   categoryId,
   productsIds,
-  countryCode,
   optionValueIds,
 }: {
   sortBy?: SortOptions
@@ -29,7 +28,6 @@ export default async function PaginatedProducts({
   collectionId?: string
   categoryId?: string
   productsIds?: string[]
-  countryCode: string
   optionValueIds?: OptionValueIds
 }) {
   const queryParams: PaginatedProductsParams = {
@@ -52,7 +50,7 @@ export default async function PaginatedProducts({
     queryParams["order"] = "created_at"
   }
 
-  const region = await getRegion(countryCode)
+  const region = await getRegion()
 
   if (!region) {
     return null
@@ -64,7 +62,6 @@ export default async function PaginatedProducts({
     page,
     queryParams,
     sortBy,
-    countryCode,
     optionValueIds,
   })
 

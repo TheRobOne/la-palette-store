@@ -32,28 +32,31 @@ export const retrieveRegion = async (id: string) => {
     .then(({ region }) => region)
 }
 
-const regionMap = new Map<string, HttpTypes.StoreRegion>()
+const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "pl"
 
-export const getRegion = async (countryCode: string) => {
-  if (regionMap.has(countryCode)) {
-    return regionMap.get(countryCode)
+let cachedRegion: HttpTypes.StoreRegion | null = null
+
+/**
+ * Resolves the store's single configured region (Poland/PLN — see
+ * NEXT_PUBLIC_DEFAULT_REGION). The store is single-market, so there is no
+ * country-code argument (feature 002-remove-locale-prefix).
+ */
+export const getRegion = async () => {
+  if (cachedRegion) {
+    return cachedRegion
   }
 
   const regions = await listRegions()
 
-  if (!regions) {
+  if (!regions?.length) {
     return null
   }
 
-  regions.forEach((region) => {
-    region.countries?.forEach((c) => {
-      regionMap.set(c?.iso_2 ?? "", region)
-    })
-  })
+  const matched = regions.find((region) =>
+    region.countries?.some((c) => c?.iso_2 === DEFAULT_REGION)
+  )
 
-  const region = countryCode
-    ? regionMap.get(countryCode)
-    : regionMap.get("us")
+  cachedRegion = matched ?? regions[0]
 
-  return region
+  return cachedRegion
 }

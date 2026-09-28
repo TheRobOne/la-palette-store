@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test"
 import AxeBuilder from "@axe-core/playwright"
 
-// quickstart.md V4: opens the storefront, sees a seeded product with a
-// gross PLN price, and audits WCAG 2.2 AA (Constitution V).
+// quickstart.md V4 (001-project-skeleton) + V2 (002-remove-locale-prefix):
+// opens the storefront at its locale-free root, sees a seeded product with
+// a gross PLN price, and audits WCAG 2.2 AA (Constitution V).
 test("home page lists a seeded product and has no accessibility violations", async ({
   page,
 }) => {
-  await page.goto("/pl")
+  await page.goto("/")
 
   await expect(page.getByText(/\(test\)/).first()).toBeVisible()
   await expect(page.getByText(/zł/).first()).toBeVisible()

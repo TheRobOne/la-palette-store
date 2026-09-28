@@ -15,14 +15,12 @@ import ProductActionsWrapper from "./product-actions-wrapper"
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct
   region: HttpTypes.StoreRegion
-  countryCode: string
   images: HttpTypes.StoreProductImage[]
 }
 
 const ProductTemplate: React.FC<ProductTemplateProps> = ({
   product,
   region,
-  countryCode,
   images,
 }) => {
   if (!product || !product.id) {
@@ -62,7 +60,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
         data-testid="related-products-container"
       >
         <Suspense fallback={<SkeletonRelatedProducts />}>
-          <RelatedProducts product={product} countryCode={countryCode} />
+          <RelatedProducts product={product} />
         </Suspense>
       </div>
     </>

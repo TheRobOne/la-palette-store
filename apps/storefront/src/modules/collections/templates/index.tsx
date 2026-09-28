@@ -11,13 +11,11 @@ export default function CollectionTemplate({
   sortBy,
   collection,
   page,
-  countryCode,
   optionValueIds,
 }: {
   sortBy?: SortOptions
   collection: HttpTypes.StoreCollection
   page?: string
-  countryCode: string
   optionValueIds?: OptionValueIds
 }) {
   const pageNumber = page ? parseInt(page) : 1
@@ -41,7 +39,6 @@ export default function CollectionTemplate({
             sortBy={sort}
             page={pageNumber}
             collectionId={collection.id}
-            countryCode={countryCode}
             optionValueIds={optionValueIds}
           />
         </Suspense>
