@@ -45,4 +45,4 @@ medusaIntegrationTestRunner({
   },
 })
 
-jest.setTimeout(60 * 1000)
+jest.setTimeout(300 * 1000)

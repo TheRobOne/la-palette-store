@@ -87,7 +87,7 @@ implemented and verified independently.
 - [X] T022 [US1] Point the starter at the backend: in `apps/storefront` make `pl` the default country/region (middleware/region lookup uses `NEXT_PUBLIC_DEFAULT_REGION`), and allow the backend host for `next/image` in `apps/storefront/next.config.ts`
 - [X] T023 [US1] Make the storefront home `apps/storefront/src/app/[countryCode]/(main)/page.tsx` render a product grid of up to 24 products from `GET /store/products` (fields per `contracts/http-api.md`) showing name, thumbnail and gross PLN price; use a short revalidation so Admin price edits appear on reload
 - [X] T024 [US1] Add a backend-unavailable state: fetch timeout of 5 s in the storefront Medusa client (`apps/storefront/src/lib/config.ts` or equivalent) and `apps/storefront/src/app/[countryCode]/(main)/error.tsx` showing "Sklep jest chwilowo niedostępny" with a retry button, keeping header/footer rendered
-- [ ] T025 [US1] Run `pnpm test:integration` (T013–T016) against the dev Postgres server and confirm no `medusa-*-integration-*` databases are left behind
+- [ ] T025 [US1] Run `pnpm test:integration` (T013–T016) against the dev Postgres server and confirm no `medusa-*-integration-*` databases are left behind — **attempted 2026-09-28: 4/6 passed (incl. seed idempotency), 2 failed on infra, not logic** (`GET /status` hook exceeded its timeout; one core migration hit `FATAL: terminating connection due to administrator command` on Railway's proxy, ~39 min total for a full temp-DB-per-suite run over the network). Timeouts bumped to 300s; not re-run — left as-is per stakeholder decision.
 
 **Checkpoint**: MVP — the store runs locally with real backend data
 
@@ -156,11 +156,20 @@ implemented and verified independently.
 - [X] T043 [P] [US4] Backend no-index header: `apps/backend/src/api/middlewares.ts` adds `X-Robots-Tag: noindex, nofollow` to every response when `ALLOW_INDEXING !== "true"`
 - [X] T044 [P] [US4] Storefront no-index: `apps/storefront/src/app/robots.ts` returns `Disallow: /` when `ALLOW_INDEXING !== "true"`; `apps/storefront/next.config.ts` adds the `X-Robots-Tag: noindex, nofollow` header; root layout metadata sets `robots: { index: false, follow: false }` in that case
 - [X] T045 [US4] Extend `apps/backend/package.json` `predeploy` to `medusa db:migrate && medusa exec ./src/scripts/seed.js` (runs inside `.medusa/server` on Railway) and confirm the built seed path exists after `pnpm --filter backend build`
-- [ ] T046 [US4] **Blocked on user**: create GitHub remote and push `main` (requires `gh auth login` or an authorised SSH key)
-- [ ] T047 [US4] **Blocked on user `railway login` or dashboard**: create empty Railway environment `staging` in project `la-palette-store` (`railway environment new staging`, no duplicate), deploy the `postgres` template into it with `POSTGRES_DB=lapalette`
-- [ ] T048 [US4] In Railway `staging`, create service `backend` from the GitHub repo: root directory `apps/backend`, build `pnpm install --frozen-lockfile && pnpm build`, start `cd .medusa/server && npm install && npm run predeploy && npm run start`, health check `/health`, "Wait for CI" on, variables per `contracts/configuration.md` (`APP_ENV=staging`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, random `JWT_SECRET`/`COOKIE_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD` provided by the user, `MEDUSA_WORKER_MODE=shared`, `DISABLE_MEDUSA_ADMIN=false`, `ALLOW_INDEXING=false`, CORS values), generate a Railway domain and set `MEDUSA_BACKEND_URL` to it
-- [ ] T049 [US4] In Railway `staging`, create service `storefront` from the GitHub repo: root `apps/storefront`, build `pnpm install --frozen-lockfile && pnpm build`, start `pnpm start`, "Wait for CI" on, variables `MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (from the staging seed log), `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION=pl`, `ALLOW_INDEXING=false`; generate a domain and update backend `STORE_CORS`/`AUTH_CORS`
-- [ ] T050 [US4] Validate staging per quickstart V5: merge to `main` → live < 15 min; `/status` 200; local credentials rejected; `X-Robots-Tag` present; a CI failure leaves the previous deployment running
+**Staging (T046–T050) abandoned for now, 2026-09-28 stakeholder decision.**
+`railway login` / `railway login --browserless` both fail with "Cannot login in
+non-interactive mode" in this environment — no way to create the `staging` Railway
+environment from here. Revisit once a human can complete that login (dashboard or CLI on a
+real terminal).
+
+- [X] T046 [US4] ~~Blocked on user~~: GitHub remote created and `main` pushed
+  (`https://github.com/TheRobOne/la-palette-store`, public)
+- [ ] T047 [US4] **Abandoned for now**: create empty Railway environment `staging` in
+  project `la-palette-store` (`railway environment new staging`, no duplicate), deploy the
+  `postgres` template into it with `POSTGRES_DB=lapalette`
+- [ ] T048 **Abandoned for now**: [US4] In Railway `staging`, create service `backend` from the GitHub repo: root directory `apps/backend`, build `pnpm install --frozen-lockfile && pnpm build`, start `cd .medusa/server && npm install && npm run predeploy && npm run start`, health check `/health`, "Wait for CI" on, variables per `contracts/configuration.md` (`APP_ENV=staging`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, random `JWT_SECRET`/`COOKIE_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD` provided by the user, `MEDUSA_WORKER_MODE=shared`, `DISABLE_MEDUSA_ADMIN=false`, `ALLOW_INDEXING=false`, CORS values), generate a Railway domain and set `MEDUSA_BACKEND_URL` to it
+- [ ] T049 **Abandoned for now**: [US4] In Railway `staging`, create service `storefront` from the GitHub repo: root `apps/storefront`, build `pnpm install --frozen-lockfile && pnpm build`, start `pnpm start`, "Wait for CI" on, variables `MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (from the staging seed log), `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION=pl`, `ALLOW_INDEXING=false`; generate a domain and update backend `STORE_CORS`/`AUTH_CORS`
+- [ ] T050 **Abandoned for now**: [US4] Validate staging per quickstart V5: merge to `main` → live < 15 min; `/status` 200; local credentials rejected; `X-Robots-Tag` present; a CI failure leaves the previous deployment running
 
 **Checkpoint**: All stories complete
 
