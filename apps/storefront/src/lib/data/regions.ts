@@ -4,6 +4,10 @@ import { sdk } from "@lib/config"
 import { HttpTypes } from "@medusajs/types"
 import { getCacheOptions } from "./cookies"
 
+// Edge case (spec): a hanging backend must not hang the page — error.tsx
+// shows the "Sklep jest chwilowo niedostępny" state.
+const FETCH_TIMEOUT_MS = 5000
+
 export const listRegions = async () => {
   const next = {
     ...(await getCacheOptions("regions")),
@@ -14,6 +18,7 @@ export const listRegions = async () => {
       method: "GET",
       next,
       cache: "force-cache",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
     .then(({ regions }) => regions)
 }
@@ -28,6 +33,7 @@ export const retrieveRegion = async (id: string) => {
       method: "GET",
       next,
       cache: "force-cache",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
     .then(({ region }) => region)
 }
