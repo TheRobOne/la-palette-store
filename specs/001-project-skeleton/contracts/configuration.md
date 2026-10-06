@@ -21,6 +21,11 @@ with a message naming the variable (spec US1 scenario 4).
 | `DISABLE_MEDUSA_ADMIN` | staging | — | `false` |
 | `ALLOW_INDEXING` | no | `false` | `false` |
 | `PORT` | no | `9000` | Railway-provided |
+| `CATERING_REVALIDATE_URL` | no | empty (call skipped) | `https://www.lapalettegarden.pl/api/catering/revalidate` |
+| `CATERING_REVALIDATE_SECRET` | with the URL | empty | Railway secret, same value as `CATERING_REVALIDATE_SECRET` in the la-palette-garden Vercel project |
+
+The two `CATERING_REVALIDATE_*` variables were added by
+[003-storefront-revalidation](../../003-storefront-revalidation/contracts/revalidate.md).
 
 No `REDIS_URL` in this feature (constitution: Redis only in production).
 

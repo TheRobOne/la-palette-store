@@ -82,6 +82,10 @@ GET /store/catering-info?product_id=<id1>&product_id=<id2>
 A product with no catering info attached (should not happen for seeded products) is
 simply absent from the map.
 
+The storefront calls this route **in batch** for product lists: one request with all product
+ids of a listing or category page (alongside `GET /store/products`), not one request per
+product card. A product page calls it with a single id.
+
 ## `GET /store/regions` (Medusa built-in)
 
 Storefront resolves the "Polska" region (currency `pln`) once and caches it.
@@ -90,3 +94,9 @@ Storefront resolves the "Polska" region (currency `pln`) once and caches it.
 
 Medusa Admin served at `MEDUSA_BACKEND_URL/app`. No custom admin routes in this feature;
 `src/admin/` contains only an empty extension placeholder (FR-014).
+
+## Storefront cache revalidation (outbound)
+
+After catalog changes the backend calls the storefront's revalidate endpoint
+(`POST {CATERING_REVALIDATE_URL}`). See
+[003-storefront-revalidation/contracts/revalidate.md](../../003-storefront-revalidation/contracts/revalidate.md).
