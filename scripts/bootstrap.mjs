@@ -22,11 +22,6 @@ copyIfMissing(
   path.join(root, "apps/backend/.env"),
   "apps/backend/.env"
 )
-copyIfMissing(
-  path.join(root, "apps/storefront/.env.template"),
-  path.join(root, "apps/storefront/.env.local"),
-  "apps/storefront/.env.local"
-)
 
 const backendEnv = readFileSync(path.join(root, "apps/backend/.env"), "utf8")
 const databaseUrl = backendEnv.match(/^DATABASE_URL=(.*)$/m)?.[1]?.trim()
@@ -50,6 +45,6 @@ run("pnpm", ["db:migrate"])
 run("pnpm", ["seed"])
 
 console.log(
-  "\nCopy the printed \"Storefront publishable key\" into " +
-    "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in apps/storefront/.env.local.\n"
+  "\nThe printed \"Storefront publishable key\" is used by the Store API " +
+    "client in la-palette-garden.\n"
 )

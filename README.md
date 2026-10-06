@@ -1,9 +1,10 @@
 # La Palette Store
 
-Catering e-commerce store for La Palette Garden, built on Medusa 2 and the
-Medusa Next.js Starter Storefront. See `specs/001-project-skeleton/` for the
-full specification, plan and validation guide this skeleton implements, and
-`.specify/memory/constitution.md` for project principles.
+Medusa 2 backend (Store API + Admin) for the La Palette Garden catering shop.
+The storefront is not part of this repository: it is built in the
+la-palette-garden repository under `lapalettegarden.pl/catering` and calls the
+Store API server-side. See `.specify/memory/constitution.md` for project
+principles and `specs/*/contracts/` for the Store API contracts.
 
 ## Prerequisites
 
@@ -24,26 +25,24 @@ pnpm dev
 
 - Backend: http://localhost:9000 (health: `/health`, readiness: `/status`)
 - Admin: http://localhost:9000/app — `admin@lapalette.local` / `lapalette-local`
-- Storefront: http://localhost:8000
 
-`pnpm bootstrap` prints a "Storefront publishable key" — copy it into
-`NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` in `apps/storefront/.env.local`.
+`pnpm bootstrap` prints a "Storefront publishable key" — the Store API client
+in la-palette-garden needs it.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Runs backend + storefront in parallel |
+| `pnpm dev` | Runs the backend |
 | `pnpm seed` | Re-runs the idempotent seed (safe any time) |
 | `pnpm db:migrate` | Runs Medusa migrations, including the `catering` module |
-| `pnpm lint` / `pnpm typecheck` | Static checks, both apps |
+| `pnpm lint` / `pnpm typecheck` | Static checks |
 | `pnpm test:unit` | Fast tests, no database — what CI runs |
 | `pnpm test:integration` | Backend tests against a temporary DB on the dev Postgres server (created and dropped automatically); run locally before merging changes to a critical path |
-| `pnpm test:e2e` | Playwright smoke test + accessibility audit against running local apps |
-| `pnpm build` | Production builds of both apps |
+| `pnpm build` | Production build of the backend |
 
-Full command reference: `specs/001-project-skeleton/contracts/dev-commands.md`.
-Step-by-step validation: `specs/001-project-skeleton/quickstart.md`.
+`specs/001-project-skeleton/` and `specs/002-remove-locale-prefix/` are kept as
+history; they still describe the storefront that used to live in `apps/`.
 
 ## Staging
 
@@ -57,5 +56,4 @@ see the feature's tasks (`specs/001-project-skeleton/tasks.md`, T046–T050).
 
 ```
 apps/backend/      Medusa 2 server + Admin (extended with the `catering` module)
-apps/storefront/    Next.js Starter Storefront, restyled with La Palette Garden tokens
 ```

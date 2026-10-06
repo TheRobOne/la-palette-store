@@ -17,16 +17,12 @@
     "ADMIN_PASSWORD",
     "MEDUSA_WORKER_MODE",
     "DISABLE_MEDUSA_ADMIN",
-    "ALLOW_INDEXING",
-    "NEXT_PUBLIC_MEDUSA_BACKEND_URL",
-    "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY",
-    "NEXT_PUBLIC_BASE_URL",
-    "NEXT_PUBLIC_DEFAULT_REGION"
+    "ALLOW_INDEXING"
   ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", ".medusa/server/**"]
+      "outputs": ["dist/**", ".medusa/server/**"]
     },
     "dev": {
       "cache": false,
