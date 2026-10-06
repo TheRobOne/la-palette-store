@@ -151,6 +151,77 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("optional company invoice", () => {
+      const companyBillingAddress = {
+        company: "Firma Testowa Sp. z o.o.",
+        address_1: "ul. Testowa 1",
+        postal_code: "30-001",
+        city: "Kraków",
+        country_code: "pl",
+      }
+
+      it("rejects completion when the NIP checksum is wrong", async () => {
+        const cartId = await createCartWithPickup(12)
+        await api.post(
+          `/store/carts/${cartId}`,
+          {
+            metadata: { invoice_requested: true, invoice_nip: "1234563219" },
+            billing_address: companyBillingAddress,
+          },
+          { headers }
+        )
+        await pay(cartId)
+
+        const response = await api
+          .post(`/store/carts/${cartId}/complete`, {}, { headers })
+          .catch((e: { response: { status: number; data: unknown } }) => e.response)
+
+        expect(response.status).toEqual(400)
+        expect(response.data).toEqual(
+          expect.objectContaining({
+            type: "invalid_data",
+            message: "Podany NIP jest nieprawidłowy. Sprawdź numer i spróbuj ponownie.",
+          })
+        )
+      })
+
+      it("copies the NIP and company data to the order", async () => {
+        const cartId = await createCartWithPickup(12)
+        await api.post(
+          `/store/carts/${cartId}`,
+          {
+            metadata: { invoice_requested: true, invoice_nip: "123-456-32-18" },
+            billing_address: companyBillingAddress,
+          },
+          { headers }
+        )
+        await pay(cartId)
+
+        const response = await api.post(
+          `/store/carts/${cartId}/complete`,
+          {},
+          { headers }
+        )
+        expect(response.data.type).toEqual("order")
+
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: orders } = await query.graph({
+          entity: "order",
+          fields: ["metadata", "billing_address.*"],
+          filters: { id: response.data.order.id },
+        })
+        expect(orders[0].metadata).toEqual(
+          expect.objectContaining({
+            invoice_requested: true,
+            invoice_nip: "123-456-32-18",
+          })
+        )
+        expect(orders[0].billing_address).toEqual(
+          expect.objectContaining(companyBillingAddress)
+        )
+      })
+    })
+
     describe("setupPickup idempotency", () => {
       it("keeps exactly one pickup set, zone and option after another run", async () => {
         const container = getContainer()

@@ -76,6 +76,38 @@ are lookup keys — don't rename them in the Admin).
    address comes from `order_rules.fulfillment.pickup.address`. `billing_address` stays free for
    invoice data.
 
+### Optional company invoice
+
+The customer may tick "chcę fakturę" and give NIP, company name and company address. Set it on the
+cart before completion with one call; both parts are copied to the order by Medusa
+(`cart.metadata` → `order.metadata`, `cart.billing_address` → `order.billing_address`):
+
+```ts
+await sdk.store.cart.update(cartId, {
+  // Send the whole metadata object (spread the current cart.metadata) so other keys survive.
+  metadata: { ...cart.metadata, invoice_requested: true, invoice_nip: "123-456-32-18" },
+  billing_address: {
+    company: "Firma Sp. z o.o.",        // required with an invoice
+    address_1: "ul. Testowa 1",         // required
+    postal_code: "30-001",              // required
+    city: "Kraków",                     // required
+    country_code: "pl",
+  },
+})
+```
+
+- `invoice_requested` must be the boolean `true`; `false` or a missing key means no invoice and the
+  other fields are ignored. Unticking: send `invoice_requested: false`.
+- `invoice_nip` accepts digits with optional spaces, dashes, dots and a `PL` prefix; the backend
+  checks length and checksum. The storefront should run the same check for early feedback
+  (algorithm in `src/lib/nip.ts`: weights 6,5,7,2,3,4,5,6,7, sum mod 11 = 10th digit).
+- Do not put company data into `shipping_address` (pickup — see above).
+- Staff see "Faktura: Tak/Nie", company, NIP and address in the order sidebar
+  (`src/admin/widgets/order-invoice.tsx`).
+- Validation on completion (`src/lib/invoice.ts`), 400 `invalid_data` messages:
+  `Podany NIP jest nieprawidłowy. Sprawdź numer i spróbuj ponownie.` or
+  `Uzupełnij dane do faktury: <missing fields>.`
+
 ### Cart completion errors — `POST /store/carts/:id/complete`
 
 Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler
