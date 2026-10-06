@@ -1,61 +1,42 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 2.0.0 → 2.1.0
-Bump rationale: MINOR — architectural decision of 2026-10-04 moves the storefront out of this
-repository. No principle is removed; storefront obligations are re-homed to la-palette-garden,
-and new binding rules are added (backend as source of truth for order rules, Store API
-contracts, SDK version alignment). Requested explicitly as a MINOR amendment.
+Version change: 2.1.0 → 2.2.0
+Bump rationale: MINOR — two new binding rules (checkout "fulfillment method" step, optional
+company invoice) and materially changed scope of the delivery rules, which now apply only
+"when delivery is offered". No principle is removed or redefined.
 
 Modified principles:
-- II. Event-Catering Ordering UX — now binding on the la-palette-garden storefront; backend
-  MUST enforce lead time/blocked dates/capacity, storefront MAY validate for UX only.
-- III. La Palette Garden Brand Fidelity — shop UI uses la-palette-garden's own theme tokens
-  directly (no copied token source in this repo).
-- V. Mobile-First Performance & Accessibility — applies to the storefront in
-  la-palette-garden (`/catering`).
-- VI. Tested Critical Commerce Paths — checkout-to-order E2E in this repo runs through the
-  Store API (HTTP integration tests); browser-level E2E belongs to la-palette-garden.
-
-Added principles:
-- VIII. Backend as Source of Truth & Store API Contracts
+- II. Event-Catering Ordering UX — launch is pickup-only (delivery zones deferred); new
+  "fulfillment method" checkout step built so delivery can be added without rebuilding the
+  path; date/slot now for pickup (and delivery when offered); minimum order value applies to
+  every fulfillment method, is staff-configurable (launch 100 zł gross) and shown in the
+  cart; delivery zones/costs validated "when delivery is offered"; new optional company
+  invoice (NIP + company data) saved on the order and visible in the Admin; checkout path
+  wording "delivery" → "fulfillment method".
+- IV. Food & Consumer-Law Transparency — delivery-cost disclosure applies when delivery is
+  offered.
+- VI. Tested Critical Commerce Paths — "delivery-slot" → "pickup/delivery-slot" (wording).
+- VIII. Backend as Source of Truth — delivery zones and costs listed as a rule only when
+  delivery is offered.
 
 Modified sections:
-- Technology Stack & Constraints — "Storefront: Next.js based on the official Medusa Next.js
-  storefront" replaced by "Repository scope" + "Store API client" (la-palette-garden,
-  src/catering, @medusajs/js-sdk server-side only, publishable key); Infrastructure & Hosting
-  names api.lapalettegarden.pl and Vercel as frontend hosting; new "Client SDK version
-  alignment" rule.
-- Development Workflow & Quality Gates — Store API changes require contracts/; Medusa upgrades
-  require a coordinated upgrade in la-palette-garden.
-- Governance — UX/brand/legal principles are referenced by la-palette-garden's AGENTS.md.
+- Technology Stack & Constraints — Admin scope adds minimum order value and invoice data;
+  new "Fulfillment" bullet (native pickup fulfillment set now; delivery later as a separate
+  shipping fulfillment set without changing pickup).
 
-Added sections: none (new principle VIII only)
+Added sections: none
 Removed sections: none
 
 Follow-up TODOs: none.
 
 Documents requiring updates (not changed by this amendment):
-- ⚠ AGENTS.md — still the generic Medusa DTC starter text: "optional storefront",
-  storefront:dev/lint commands, building-storefronts skill, NEXT_PUBLIC_* publishable-key
-  mistake; MCP server recommendation conflicts with Knowledge Sources. Rewrite as backend-only
-  and point to la-palette-garden as the Store API client.
-- ⚠ README.md — intro ("Medusa Next.js Starter Storefront"), localhost:8000, publishable key
-  copied into apps/storefront/.env.local, `pnpm dev` / lint / build / test:e2e "both apps",
-  Project layout listing apps/storefront.
-- ⚠ .github/workflows/ci.yml — NEXT_PUBLIC_* placeholder env vars and STORE_CORS/AUTH_CORS
-  :8000 origins only exist for the storefront; drop once apps/storefront is removed.
-- ⚠ package.json — `test:e2e` filters storefront; root react/react-dom devDependencies and
-  pnpm-workspace.yaml @types/react overrides exist for the storefront.
-- ⚠ apps/storefront/ — to be removed (throwaway) in a dedicated change.
-- ⚠ apps/backend medusa-config / Railway variables — STORE_CORS, MEDUSA_BACKEND_URL for
-  api.lapalettegarden.pl.
-- ⚠ la-palette-garden: add AGENTS.md referencing this constitution (Principles II–V, VIII)
-  and pin @medusajs/js-sdk + @medusajs/types to 2.21.1.
-- ✅ .specify/templates/* — no storefront references; Constitution Check reads principles at
-  runtime.
-- Note: specs/001-project-skeleton and specs/002-remove-locale-prefix describe the in-repo
-  storefront; they are historical and are not rewritten.
+- ✅ apps/backend/AGENTS.md "Kontrakty dla storefrontu" — already describes pickup-only,
+  min order value (store metadata, default 100) and order-rules endpoint (commit 7f255f6).
+- ⚠ apps/backend/AGENTS.md — add the invoice-data contract once that feature lands.
+- ⚠ la-palette-garden AGENTS.md / docs/plans — cart and checkout plans must follow the
+  pickup-only scope, the fulfillment-method step and the optional invoice.
+- ✅ .specify/templates/* — read principles at runtime; no change needed.
 -->
 
 # La Palette Store Constitution
@@ -89,13 +70,24 @@ business requirement, even though its code lives outside this repository:
   product cards without opening the product page.
 - Products MUST support catering-specific quantities: minimum order quantity, quantity steps,
   and sets priced per piece, per portion or per person, clearly labelled.
-- Checkout MUST collect the event delivery date and time slot; the backend MUST enforce the
-  minimum order lead time, blocked dates and daily capacity limits (Principle VIII), and the
-  storefront MAY repeat these checks to give early feedback.
-- A minimum order value and delivery zones/costs MUST be validated before payment and
-  communicated to the customer in the cart, not only at the final step.
+- At launch the only fulfillment method is in-person pickup at the La Palette Garden venue;
+  city delivery in zones is deferred. Checkout MUST nevertheless have a dedicated
+  "fulfillment method" step (pickup / delivery) designed so that adding delivery later does
+  not require rebuilding the checkout path.
+- Checkout MUST collect the event date and time slot for pickup (and for delivery, when
+  delivery is offered); the backend MUST enforce the minimum order lead time, blocked dates
+  and daily capacity limits (Principle VIII), and the storefront MAY repeat these checks to
+  give early feedback.
+- A minimum order value applies regardless of the fulfillment method. It MUST be configurable
+  by staff without a deploy (launch value: 100 zł gross), validated before payment and shown
+  to the customer in the cart, not only at the final step.
+- When delivery is offered, delivery zones and costs MUST likewise be validated before payment
+  and communicated in the cart.
+- The customer MAY request a company invoice (NIP and company name/address). Invoice data
+  MUST be saved on the order and visible to staff in the Admin.
 - The path from landing page to placed order MUST remain short: product → cart → checkout
-  (contact, delivery, date/slot, payment) → confirmation, with guest checkout allowed.
+  (contact, fulfillment method, date/slot, payment) → confirmation, with guest checkout
+  allowed.
 
 Rationale: event catering is ordered by date and headcount, not by single items; the UX must
 prevent orders that the kitchen cannot fulfil.
@@ -124,8 +116,8 @@ same place; reusing our own assets keeps it consistent while third-party content
 
 - Every food product MUST display ingredients and the 14 EU allergens (Regulation (EU)
   No 1169/2011), plus dietary labels (vegetarian, vegan, gluten-free, etc.) where applicable.
-- Prices MUST be shown in PLN as gross amounts (VAT included), with delivery costs disclosed
-  before the order is placed.
+- Prices MUST be shown in PLN as gross amounts (VAT included); when delivery is offered, its
+  costs MUST be disclosed before the order is placed.
 - The store MUST comply with Polish consumer law and GDPR (RODO): terms of service, privacy
   policy, cookie consent, explicit order-with-payment-obligation button, and clear
   cancellation rules for perishable, date-bound goods.
@@ -153,7 +145,7 @@ Rationale: most catering orders are browsed on phones; slow or inaccessible page
 ### VI. Tested Critical Commerce Paths
 
 - Automated tests MUST cover: price and total calculation, minimum quantity/order value rules,
-  lead-time and delivery-slot validation, and the full checkout-to-order flow.
+  lead-time and pickup/delivery-slot validation, and the full checkout-to-order flow.
 - Custom Medusa modules and workflows MUST have integration tests using Medusa's testing
   tooling; the checkout-to-order flow MUST have an end-to-end test through the Store API
   (HTTP integration tests) against a seeded database, including rejection of orders that
@@ -181,9 +173,9 @@ itself.
 
 ### VIII. Backend as Source of Truth & Store API Contracts
 
-- The backend is the single source of truth for order rules: delivery zones and costs,
-  minimum order value, lead time, blocked dates, daily capacity limits, and catering
-  quantities (minimum quantity, quantity steps). The backend MUST reject an order that
+- The backend is the single source of truth for order rules: minimum order value, lead time,
+  blocked dates, daily capacity limits, catering quantities (minimum quantity, quantity
+  steps) and, when delivery is offered, delivery zones and costs. The backend MUST reject an order that
   violates any of them regardless of what the storefront sent or validated.
 - The storefront MAY validate the same rules for UX, but MUST NOT be the only place a rule is
   enforced, and MUST NOT hard-code rule values the backend can provide.
@@ -220,8 +212,12 @@ contracts keep two repositories in sync.
   production) database. Docker MUST NOT be required on the developer's machine. The frontend
   (la-palette-garden, `lapalettegarden.pl`) is hosted on Vercel on a plan that permits
   commercial use (the Hobby plan does not).
-- **Admin**: Medusa Admin, extended with widgets/routes for catering operations (delivery
-  calendar, capacity, allergen data) rather than a separate admin app.
+- **Admin**: Medusa Admin, extended with widgets/routes for catering operations (pickup/delivery
+  calendar, capacity, minimum order value, invoice data, allergen data) rather than a separate
+  admin app.
+- **Fulfillment**: in-person pickup at the venue through Medusa's native pickup fulfillment
+  set (the only method at launch). City delivery, when introduced, MUST be added as a
+  separate shipping fulfillment set with service zones, without changing the pickup setup.
 - **Payments**: the primary payment provider is Przelewy24 (BLIK, fast bank transfers, cards),
   integrated as a Medusa payment provider module with webhook-based payment confirmation.
   Another Polish payment intermediary MAY be added or substituted only through the same
@@ -284,4 +280,4 @@ contracts keep two repositories in sync.
   AGENTS.md MUST reference this constitution rather than restate it.
 - Compliance is reviewed at each Medusa upgrade and at least once per quarter.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-04
+**Version**: 2.2.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-06
