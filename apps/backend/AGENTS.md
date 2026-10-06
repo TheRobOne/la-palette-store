@@ -28,3 +28,63 @@ Content-Type: application/json
   update the mapping, its unit test and the contract together.
 - Scripts run with `medusa exec` exit before the batch fires: call `revalidateStorefront`
   explicitly at the end of a script that changes the catalog (see `seed-catalog.ts`).
+
+## Kontrakty dla storefrontu
+
+API contracts for la-palette-garden (`src/catering`) that have no Spec Kit spec of their own.
+Every call needs `x-publishable-api-key`. Amounts are gross PLN in major units (`100` = 100 zł).
+
+### Order rules — `GET /store/catering/order-rules`
+
+```json
+{
+  "order_rules": {
+    "currency_code": "pln",
+    "min_order_value": 100,
+    "fulfillment": {
+      "pickup": {
+        "enabled": true,
+        "address": { "address_1": "ul. Gustawa Morcinka 40", "postal_code": "31-762", "city": "Kraków", "phone": "+48 734 431 447" }
+      },
+      "delivery": { "enabled": false }
+    }
+  }
+}
+```
+
+- Show `min_order_value` in the cart as soon as it has items; compare it with `cart.item_total`
+  (gross items after discounts, without shipping) and block "go to checkout" below it.
+- Staff change the value in Admin → Settings → Store (widget; stored in store metadata
+  `catering_min_order_value`, default 100, 0 disables the limit). It is not part of the
+  revalidation tags — fetch it with a short cache (≤ 60 s) or uncached.
+- Code: `src/api/store/catering/order-rules/route.ts`, `src/lib/order-rules.ts`,
+  `src/lib/min-order-value.ts`, `src/admin/widgets/min-order-value.tsx`.
+
+### Fulfillment — in-person pickup only
+
+Pickup at the venue is the only option at launch (delivery zones deferred). Setup is idempotent
+in `src/scripts/setup-pickup.ts` (run by `seed.ts` on every deploy; names in `src/lib/pickup.ts`
+are lookup keys — don't rename them in the Admin).
+
+1. `sdk.store.fulfillment.listCartOptions({ cart_id })` → one option, `name: "Odbiór osobisty"`,
+   `amount: 0`, `type.code: "pickup"`. Recognise pickup by `type.code`, not by name.
+2. `sdk.store.cart.addShippingMethod(cartId, { option_id })`.
+3. **Do not fill `shipping_address`.** Medusa 2.21.1 (verified in core-flows source and the
+   integration test) needs no street address to list pickup options or complete the cart. On cart
+   creation it pre-fills only `country_code: "pl"` (single-country region), which the pickup zone's
+   PL geo zone matches; the order keeps that address with all other fields `null`. The pickup
+   address comes from `order_rules.fulfillment.pickup.address`. `billing_address` stays free for
+   invoice data.
+
+### Cart completion errors — `POST /store/carts/:id/complete`
+
+Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler
+(`src/workflows/hooks/complete-cart-validate.ts` — a hook takes only one handler, so add future
+rules such as pickup slots there). A rejected cart answers **400**:
+
+```json
+{ "type": "invalid_data", "message": "Minimalna wartość zamówienia to 100,00 zł. Dodaj produkty za co najmniej 88,00 zł." }
+```
+
+`message` is Polish and customer-readable — show it as is. Payment errors keep Medusa's default
+(200 with `type: "cart"` and `error`).

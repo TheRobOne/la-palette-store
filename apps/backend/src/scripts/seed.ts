@@ -27,6 +27,10 @@ import {
   linkSalesChannelsToStockLocationWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
+import {
+  DEFAULT_MIN_ORDER_VALUE,
+  MIN_ORDER_VALUE_METADATA_KEY,
+} from "../lib/order-rules"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
 import type {
@@ -34,13 +38,14 @@ import type {
   DietaryTag,
   PricingUnit,
 } from "../modules/catering/models/catering-product-info"
+import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../lib/pickup"
+import { setupPickup } from "./setup-pickup"
 
 const REGION_NAME = "Polska"
 const COUNTRY_CODE = "pl"
 const CURRENCY_CODE = "pln"
 const SALES_CHANNEL_NAME = "Sklep internetowy"
 const PUBLISHABLE_KEY_TITLE = "Storefront"
-const STOCK_LOCATION_NAME = "Kuchnia La Palette"
 const STORE_NAME = "La Palette Store"
 
 const CATEGORIES = [
@@ -299,11 +304,7 @@ export default async function seed({ container }: ExecArgs) {
         locations: [
           {
             name: STOCK_LOCATION_NAME,
-            address: {
-              city: "Warszawa",
-              country_code: COUNTRY_CODE.toUpperCase(),
-              address_1: "",
-            },
+            address: VENUE_ADDRESS,
           },
         ],
       },
@@ -321,8 +322,14 @@ export default async function seed({ container }: ExecArgs) {
     logger.info(`Stock location "${STOCK_LOCATION_NAME}" already exists.`)
   }
 
+  // --- In-person pickup: the only fulfillment at launch -------------------
+  await setupPickup(container)
+
   // --- Store: PLN default currency, default region + sales channel ------
-  const { data: stores } = await query.graph({ entity: "store", fields: ["id"] })
+  const { data: stores } = await query.graph({
+    entity: "store",
+    fields: ["id", "metadata"],
+  })
   if (stores.length === 0) {
     await createStoresWorkflow(container).run({
       input: {
@@ -332,6 +339,7 @@ export default async function seed({ container }: ExecArgs) {
             supported_currencies: [{ currency_code: CURRENCY_CODE, is_default: true }],
             default_sales_channel_id: salesChannel.id,
             default_region_id: region.id,
+            metadata: { [MIN_ORDER_VALUE_METADATA_KEY]: DEFAULT_MIN_ORDER_VALUE },
           },
         ],
       },
@@ -346,6 +354,16 @@ export default async function seed({ container }: ExecArgs) {
           supported_currencies: [{ currency_code: CURRENCY_CODE, is_default: true }],
           default_sales_channel_id: salesChannel.id,
           default_region_id: region.id,
+          // Minimum order value is edited by staff in the Admin — only set
+          // the default when it has never been configured.
+          ...(stores[0].metadata?.[MIN_ORDER_VALUE_METADATA_KEY] === undefined
+            ? {
+                metadata: {
+                  ...stores[0].metadata,
+                  [MIN_ORDER_VALUE_METADATA_KEY]: DEFAULT_MIN_ORDER_VALUE,
+                },
+              }
+            : {}),
         },
       },
     })
