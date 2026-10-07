@@ -85,12 +85,12 @@ copied by Medusa to `order.metadata`, kept in sync by the reschedule workflow (c
 For each date in the requested range and each window rule of its weekday, a window is
 available when all hold (FR-002):
 
-1. `date` ≥ today (Warsaw) and `date` ≤ today + `booking_horizon_days`;
-2. the method's schedule `is_enabled`;
+1. `date` ≥ today (Warsaw);
+2. the method's schedule exists and `is_enabled`, and `date` ≤ today + `booking_horizon_days`;
 3. no `BlockedDate` for (`date`, method) or (`date`, `null`);
 4. window start (Warsaw → instant) − now ≥ `lead_time_hours`;
 5. active bookings on `date` < `daily_capacity`.
 
 A day is available when at least one of its windows is. Unavailable days carry the first
-failing reason: `past`, `beyond_horizon`, `disabled`, `blocked`, `closed` (no windows that
+failing reason: `past`, `disabled`, `beyond_horizon`, `blocked`, `closed` (no windows that
 weekday), `full`, `lead_time`.

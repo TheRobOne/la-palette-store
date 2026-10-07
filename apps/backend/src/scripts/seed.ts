@@ -40,6 +40,7 @@ import type {
 } from "../modules/catering/models/catering-product-info"
 import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../lib/pickup"
 import { setupPickup } from "./setup-pickup"
+import { setupPickupSchedule } from "./setup-pickup-schedule"
 
 const REGION_NAME = "Polska"
 const COUNTRY_CODE = "pl"
@@ -324,6 +325,7 @@ export default async function seed({ container }: ExecArgs) {
 
   // --- In-person pickup: the only fulfillment at launch -------------------
   await setupPickup(container)
+  await setupPickupSchedule(container)
 
   // --- Store: PLN default currency, default region + sales channel ------
   const { data: stores } = await query.graph({

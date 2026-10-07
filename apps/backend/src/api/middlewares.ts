@@ -1,5 +1,18 @@
-import { configureStoreSearch, defineMiddlewares } from '@medusajs/framework/http'
+import {
+  configureStoreSearch,
+  defineMiddlewares,
+  validateAndTransformBody,
+  validateAndTransformQuery,
+} from '@medusajs/framework/http'
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
+import {
+  AdminBlockDateBody,
+  AdminRescheduleBody,
+  AdminScheduleBody,
+  DateRangeQuery,
+  MethodQuery,
+  StoreSlotsQuery,
+} from './validators/catering-scheduling'
 
 // Clarification: staging (and any non-`ALLOW_INDEXING=true` environment) is
 // public but must not be indexed by search engines — including /app (Admin).
@@ -22,6 +35,44 @@ export default defineMiddlewares({
       method: ['GET', 'POST', 'PUT', 'DELETE'],
       matcher: '*',
       middlewares: [noIndexHeader],
+    },
+    {
+      method: ['GET'],
+      matcher: '/store/catering/slots',
+      middlewares: [validateAndTransformQuery(StoreSlotsQuery, {})],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/schedule',
+      middlewares: [validateAndTransformQuery(MethodQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/schedule',
+      middlewares: [
+        validateAndTransformQuery(MethodQuery, {}),
+        validateAndTransformBody(AdminScheduleBody),
+      ],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/blocked-dates',
+      middlewares: [validateAndTransformQuery(DateRangeQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/blocked-dates',
+      middlewares: [validateAndTransformBody(AdminBlockDateBody)],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/calendar',
+      middlewares: [validateAndTransformQuery(DateRangeQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/orders/:id/pickup-term',
+      middlewares: [validateAndTransformBody(AdminRescheduleBody)],
     },
     {
       method: ['POST'],

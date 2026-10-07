@@ -55,7 +55,9 @@ kitchen-wide (shared by all methods).
 }
 ```
 
-Includes days with bookings outside the current window rules (window still listed). A
+`blocked` is `null` or `{ id, reason, method }` (`method: null` = whole kitchen) — the `id` is
+used by the "Odblokuj" action. Includes days with bookings outside the current window rules
+(window still listed). A
 booking whose order is not linked yet appears with `order_id: null`.
 
 ## Reschedule — `POST /admin/catering/orders/:id/pickup-term`

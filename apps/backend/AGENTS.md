@@ -84,8 +84,8 @@ cart before completion with one call; both parts are copied to the order by Medu
 
 ```ts
 await sdk.store.cart.update(cartId, {
-  // Send the whole metadata object (spread the current cart.metadata) so other keys survive.
-  metadata: { ...cart.metadata, invoice_requested: true, invoice_nip: "123-456-32-18" },
+  // Medusa merges cart metadata shallowly: other keys (e.g. catering_term) survive.
+  metadata: { invoice_requested: true, invoice_nip: "123-456-32-18" },
   billing_address: {
     company: "Firma Sp. z o.o.",        // required with an invoice
     address_1: "ul. Testowa 1",         // required
@@ -108,15 +108,35 @@ await sdk.store.cart.update(cartId, {
   `Podany NIP jest nieprawidłowy. Sprawdź numer i spróbuj ponownie.` or
   `Uzupełnij dane do faktury: <missing fields>.`
 
+### Pickup term (date + window) — spec 004
+
+Full contract: [specs/004-pickup-scheduling/contracts/store-api.md](../../specs/004-pickup-scheduling/contracts/store-api.md).
+
+- `GET /store/catering/slots?from=YYYY-MM-DD&to=YYYY-MM-DD` (≤ 62 days, uncached) → every date with
+  `available`, `reason` and its windows.
+- The chosen window goes to `cart.metadata.catering_term = { method: "pickup", date, start, end }`
+  (copied from a returned window). Nothing is reserved until completion.
+- Completion re-checks the term and takes a place in the kitchen's daily capacity under a per-date
+  lock; the order keeps `metadata.catering_term` (updated if staff reschedule).
+
+Cart metadata is merged **shallowly** by Medusa (`mergeMetadata`): top-level keys from different
+features coexist; a nested object such as `catering_term` is replaced as a whole; `""` removes a key.
+
 ### Cart completion errors — `POST /store/carts/:id/complete`
 
 Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler
-(`src/workflows/hooks/complete-cart-validate.ts` — a hook takes only one handler, so add future
-rules such as pickup slots there). A rejected cart answers **400**:
+(`src/workflows/hooks/complete-cart-validate.ts` — a hook takes only one handler, so add every
+future rule there), in this order: minimum order value → invoice data → pickup term. The term step
+books the place (`src/lib/pickup-booking.ts`, lock key `catering:capacity:<date>`, also used by
+staff reschedules) and its compensation removes the booking if a later step fails. A rejected cart
+answers **400**:
 
 ```json
 { "type": "invalid_data", "message": "Minimalna wartość zamówienia to 100,00 zł. Dodaj produkty za co najmniej 88,00 zł." }
 ```
+
+Term errors: `Wybierz termin odbioru.`, `Wybrany termin odbioru (20.10.2026, 11:00–12:00) nie jest
+już dostępny. Wybierz inny termin.`, `Nie udało się zarezerwować terminu. Spróbuj ponownie za chwilę.`
 
 `message` is Polish and customer-readable — show it as is. Payment errors keep Medusa's default
 (200 with `type: "cart"` and `error`).

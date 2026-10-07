@@ -53,7 +53,10 @@ internals. File references are to the compiled `dist/` code.
   the same term, the handler accepts it without counting it twice and without compensation.
 - **Locking provider**: Medusa's default in-memory locking in dev/staging (single process,
   `MEDUSA_WORKER_MODE=shared`), Redis provider in production — already required by the
-  constitution for production.
+  constitution for production. Verified (T001): `@medusajs/medusa/locking` is in
+  `defineConfig`'s `defaultModules` (`utils/dist/common/define-config.js`), so
+  `container.resolve(Modules.LOCKING)` works without an entry in `medusa-config.ts`; the Redis
+  variant (`locking-redis`) is selected there when Redis is configured.
 - **Alternatives considered**: a DB unique constraint per (date, seat number) — awkward with a
   configurable capacity; `SELECT … FOR UPDATE` on a per-day row — not exposed through module
   services, would need raw SQL; checking in the undocumented `orderCreated` hook — it is

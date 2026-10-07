@@ -2,6 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seed from "../../src/scripts/seed"
 import { setupPickup } from "../../src/scripts/setup-pickup"
+import { addDays, warsawToday } from "../../src/modules/catering/scheduling/time"
 
 // Pickup-only fulfillment + minimum order value (contract: apps/backend/AGENTS.md
 // → "Kontrakty dla storefrontu"). Sample product "test-mini-tarta-cytrynowa"
@@ -69,6 +70,26 @@ medusaIntegrationTestRunner({
       await api.post(
         `/store/carts/${cart.id}/shipping-methods`,
         { option_id: shipping_options[0].id },
+        { headers }
+      )
+
+      // Every order needs a pickup term (specs/004-pickup-scheduling).
+      const today = warsawToday(new Date())
+      const {
+        data: { slots },
+      } = await api.get(
+        `/store/catering/slots?from=${today}&to=${addDays(today, 14)}`,
+        { headers }
+      )
+      const day = slots.days.find((d: { available: boolean }) => d.available)
+      const window = day.windows.find((w: { available: boolean }) => w.available)
+      await api.post(
+        `/store/carts/${cart.id}`,
+        {
+          metadata: {
+            catering_term: { method: "pickup", date: day.date, start: window.start, end: window.end },
+          },
+        },
         { headers }
       )
       return cart.id as string
