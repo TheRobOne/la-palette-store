@@ -16,8 +16,8 @@ Most entities are Medusa built-ins configured by the seed. The only custom data 
 | Sales Channel | "Sklep internetowy" | `name` |
 | Publishable API Key | "Storefront", linked to sales channel | `title` |
 | Stock Location | "Kuchnia La Palette" (address placeholder), linked to sales channel + manual fulfillment | `name` |
-| Product Category | 2 categories: `finger-food` "Finger food", `desery` "Desery" | `handle` |
-| Product | ≥ 6 fictional products (≥ 3 per category), status `published`, 1 variant each, PLN price, placeholder thumbnail | `handle` (prefix `test-`) |
+| Product Category | 2 sample categories: `finger-food` "Finger food", `desery` "Desery" — only while no real catalog exists (see below) | `handle` |
+| Product | ≥ 6 fictional products (≥ 3 per category), status `published`, 1 variant each, PLN price, placeholder thumbnail — only while no real catalog exists (see below) | `handle` (prefix `test-`) |
 | User (admin) | local: `admin@lapalette.local`; other envs: `ADMIN_EMAIL` | `email` |
 
 ### Product (sample) rules
@@ -28,6 +28,39 @@ Most entities are Medusa built-ins configured by the seed. The only custom data 
 - `thumbnail` = `${MEDUSA_BACKEND_URL}/static/placeholders/<n>.svg` (research R-09).
 - Inventory not managed (`manage_inventory = false`) — capacity rules belong to a later
   feature.
+
+### Catalog import (`seed-catalog.ts`)
+
+The sample categories and products are created only when the database holds no product
+outside the `test-` prefix, so a deploy (`predeploy` runs the seed) never re-adds them
+next to a real catalog. The catalog itself comes from a separate, manually run script —
+not part of `predeploy`:
+
+```bash
+npx medusa exec ./src/scripts/seed-catalog.ts   # after the seed
+```
+
+It deletes all `test-` products (catering info cascades) and the `finger-food` category,
+then creates — idempotently by `handle` — the categories and products from
+`apps/backend/src/scripts/data/catalog.ts`. Current content (2026-10-05): a working
+baseline mirrored from megustacatering.pl, to be replaced with La Palette texts and
+prices before launch.
+
+| Category (`handle`, rank order) | Products | Pricing |
+|---|---|---|
+| `boxy-wytrawne` "Boxy wytrawne" | 20 | per box (4–6 persons), `piece`, min 1 |
+| `boxy-slodkie` "Boxy słodkie" | 3 | per box, `piece`, min 1 |
+| `dla-dzieci` "Dla dzieci" | 2 | per box, `piece`, min 1 |
+| `przerwy-kawowe` "Przerwy kawowe" | 3 | `person`, min 12 |
+| `dania-obiadowe` "Dania obiadowe" | 21 | `portion` / `piece`, min 10 |
+| `bowle` "Bowle" | 5 | `piece`, min 5 |
+| `desery` "Desery" | 4 | `piece`, min 10 |
+| `napoje` "Napoje" | 2 | `piece`, min 10 |
+
+Catalog rules: 1 variant "Standard" with gross PLN price, `quantity_step = 1`, placeholder
+thumbnail, `metadata.source = "megustacatering.pl"`, box size/weight in `subtitle`.
+`allergens` are empty for every product (the source publishes none) and MUST be filled
+in before launch.
 
 ## Custom: `catering_product_info` (module `catering`)
 
@@ -57,7 +90,7 @@ Most entities are Medusa built-ins configured by the seed. The only custom data 
 
 ### Validation
 
-- Seed validates every sample product has a `catering_product_info` row.
+- Every seeded or imported product gets exactly one `catering_product_info` row.
 - `min_quantity` MUST be a multiple of `quantity_step` (enforced in the module service;
   used later by cart validation).
 

@@ -1,6 +1,11 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import { MedusaError } from "@medusajs/framework/utils"
+import BlockedDate from "./models/blocked-date"
+import Booking from "./models/booking"
 import CateringProductInfo from "./models/catering-product-info"
+import FulfillmentSchedule from "./models/fulfillment-schedule"
+import SchedulingSettings from "./models/scheduling-settings"
+import WindowRule from "./models/window-rule"
 
 type CateringProductInfoInput = {
   min_quantity?: number
@@ -35,6 +40,11 @@ export function assertQuantityRule(data: CateringProductInfoInput) {
 
 class CateringModuleService extends MedusaService({
   CateringProductInfo,
+  SchedulingSettings,
+  FulfillmentSchedule,
+  WindowRule,
+  BlockedDate,
+  Booking,
 }) {
   async createCateringProductInfos(data: CateringProductInfoInput) {
     assertQuantityRule(data)

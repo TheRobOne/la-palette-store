@@ -14,7 +14,6 @@
     "typecheck": "turbo run typecheck",
     "test:unit": "turbo run test:unit",
     "test:integration": "pnpm --filter backend run test:integration:http && pnpm --filter backend run test:integration:modules",
-    "test:e2e": "pnpm --filter storefront run test:e2e",
     "build": "turbo run build"
   },
   "devDependencies": {

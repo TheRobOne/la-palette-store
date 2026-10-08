@@ -2,12 +2,8 @@ packages:
   - "apps/**"
   - "!apps/backend/.medusa/**"
 
-# pnpm 12+ (the equivalent package.json#pnpm.overrides field is no longer
-# read): force one @types/react(-dom) version across the workspace so
-# @medusajs/ui's own React 18 peer types don't shadow the storefront's React 19.
+# pnpm 12+ (the equivalent package.json#pnpm.overrides field is no longer read)
 overrides:
-  "@types/react": "19.0.5"
-  "@types/react-dom": "19.0.5"
   "tsconfig-paths": "^4.2.0"
 
 # pnpm 11+
@@ -17,8 +13,6 @@ allowBuilds:
   "esbuild": true
   "msgpackr-extract": true
   "protobufjs": true
-  "sharp": true
-  "unrs-resolver": true
 
 # pnpm 10.x
 onlyBuiltDependencies:
@@ -27,5 +21,3 @@ onlyBuiltDependencies:
   - "esbuild"
   - "msgpackr-extract"
   - "protobufjs"
-  - "sharp"
-  - "unrs-resolver"

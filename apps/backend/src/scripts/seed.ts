@@ -27,6 +27,10 @@ import {
   linkSalesChannelsToStockLocationWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows"
+import {
+  DEFAULT_MIN_ORDER_VALUE,
+  MIN_ORDER_VALUE_METADATA_KEY,
+} from "../lib/order-rules"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
 import type {
@@ -34,13 +38,15 @@ import type {
   DietaryTag,
   PricingUnit,
 } from "../modules/catering/models/catering-product-info"
+import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../lib/pickup"
+import { setupPickup } from "./setup-pickup"
+import { setupPickupSchedule } from "./setup-pickup-schedule"
 
 const REGION_NAME = "Polska"
 const COUNTRY_CODE = "pl"
 const CURRENCY_CODE = "pln"
 const SALES_CHANNEL_NAME = "Sklep internetowy"
 const PUBLISHABLE_KEY_TITLE = "Storefront"
-const STOCK_LOCATION_NAME = "Kuchnia La Palette"
 const STORE_NAME = "La Palette Store"
 
 const CATEGORIES = [
@@ -299,11 +305,7 @@ export default async function seed({ container }: ExecArgs) {
         locations: [
           {
             name: STOCK_LOCATION_NAME,
-            address: {
-              city: "Warszawa",
-              country_code: COUNTRY_CODE.toUpperCase(),
-              address_1: "",
-            },
+            address: VENUE_ADDRESS,
           },
         ],
       },
@@ -321,8 +323,15 @@ export default async function seed({ container }: ExecArgs) {
     logger.info(`Stock location "${STOCK_LOCATION_NAME}" already exists.`)
   }
 
+  // --- In-person pickup: the only fulfillment at launch -------------------
+  await setupPickup(container)
+  await setupPickupSchedule(container)
+
   // --- Store: PLN default currency, default region + sales channel ------
-  const { data: stores } = await query.graph({ entity: "store", fields: ["id"] })
+  const { data: stores } = await query.graph({
+    entity: "store",
+    fields: ["id", "metadata"],
+  })
   if (stores.length === 0) {
     await createStoresWorkflow(container).run({
       input: {
@@ -332,6 +341,7 @@ export default async function seed({ container }: ExecArgs) {
             supported_currencies: [{ currency_code: CURRENCY_CODE, is_default: true }],
             default_sales_channel_id: salesChannel.id,
             default_region_id: region.id,
+            metadata: { [MIN_ORDER_VALUE_METADATA_KEY]: DEFAULT_MIN_ORDER_VALUE },
           },
         ],
       },
@@ -346,111 +356,132 @@ export default async function seed({ container }: ExecArgs) {
           supported_currencies: [{ currency_code: CURRENCY_CODE, is_default: true }],
           default_sales_channel_id: salesChannel.id,
           default_region_id: region.id,
+          // Minimum order value is edited by staff in the Admin — only set
+          // the default when it has never been configured.
+          ...(stores[0].metadata?.[MIN_ORDER_VALUE_METADATA_KEY] === undefined
+            ? {
+                metadata: {
+                  ...stores[0].metadata,
+                  [MIN_ORDER_VALUE_METADATA_KEY]: DEFAULT_MIN_ORDER_VALUE,
+                },
+              }
+            : {}),
         },
       },
     })
     logger.info(`Updated store "${STORE_NAME}".`)
   }
 
-  // --- Product categories -------------------------------------------------
-  const categoryIds: Record<string, string> = {}
-  for (const category of CATEGORIES) {
-    const { data: existing } = await query.graph({
-      entity: "product_category",
-      fields: ["id", "handle"],
-      filters: { handle: category.handle },
-    })
-    if (existing[0]) {
-      categoryIds[category.handle] = existing[0].id
-      continue
-    }
-    const { result } = await createProductCategoriesWorkflow(container).run({
-      input: {
-        product_categories: [
-          { name: category.name, handle: category.handle, is_active: true },
-        ],
-      },
-    })
-    categoryIds[category.handle] = result[0].id
-    logger.info(`Created category "${category.name}".`)
-  }
-
-  // --- Sample products with catering info ---------------------------------
-  const { data: fulfillmentSets } = await query.graph({
-    entity: "shipping_profile",
-    fields: ["id"],
+  // --- Sample catalog: only while no real catalog (seed-catalog.ts) exists,
+  // so a deploy never brings the `test-` samples back. ---------------------
+  const { data: allProducts } = await query.graph({
+    entity: "product",
+    fields: ["handle"],
   })
-  let shippingProfileId = fulfillmentSets[0]?.id
-  if (!shippingProfileId) {
-    const created = await fulfillmentModuleService.createShippingProfiles({
-      name: "Default",
-      type: "default",
-    })
-    shippingProfileId = created.id
-  }
-
-  for (const sample of SAMPLE_PRODUCTS) {
-    const { data: existingProducts } = await query.graph({
-      entity: "product",
-      fields: ["id", "handle"],
-      filters: { handle: sample.handle },
-    })
-
-    let productId = existingProducts[0]?.id
-    if (!productId) {
-      const { result } = await createProductsWorkflow(container).run({
+  const hasRealCatalog = allProducts.some((p) => !p.handle?.startsWith("test-"))
+  if (hasRealCatalog) {
+    logger.info("Real catalog present — skipping sample categories and products.")
+  } else {
+    // --- Product categories -------------------------------------------------
+    const categoryIds: Record<string, string> = {}
+    for (const category of CATEGORIES) {
+      const { data: existing } = await query.graph({
+        entity: "product_category",
+        fields: ["id", "handle"],
+        filters: { handle: category.handle },
+      })
+      if (existing[0]) {
+        categoryIds[category.handle] = existing[0].id
+        continue
+      }
+      const { result } = await createProductCategoriesWorkflow(container).run({
         input: {
-          products: [
-            {
-              title: sample.title,
-              handle: sample.handle,
-              description: sample.description,
-              status: ProductStatus.PUBLISHED,
-              category_ids: [categoryIds[sample.category]],
-              shipping_profile_id: shippingProfileId,
-              thumbnail: `${backendUrl}/static/placeholders/${sample.image}`,
-              images: [{ url: `${backendUrl}/static/placeholders/${sample.image}` }],
-              options: [{ title: "Wersja", values: ["Standard"] }],
-              variants: [
-                {
-                  title: "Standard",
-                  manage_inventory: false,
-                  options: { Wersja: "Standard" },
-                  prices: [{ amount: sample.price, currency_code: CURRENCY_CODE }],
-                },
-              ],
-              sales_channels: [{ id: salesChannel.id }],
-            },
+          product_categories: [
+            { name: category.name, handle: category.handle, is_active: true },
           ],
         },
       })
-      productId = result[0].id
-      logger.info(`Created product "${sample.title}".`)
+      categoryIds[category.handle] = result[0].id
+      logger.info(`Created category "${category.name}".`)
     }
 
-    const { data: cateringInfos } = await query.graph({
-      entity: "product",
-      fields: ["id", "catering_product_info.id"],
-      filters: { id: productId },
+    // --- Sample products with catering info ---------------------------------
+    const { data: fulfillmentSets } = await query.graph({
+      entity: "shipping_profile",
+      fields: ["id"],
     })
-    const hasCateringInfo = Boolean(
-      (cateringInfos[0] as { catering_product_info?: { id: string } })
-        ?.catering_product_info
-    )
-    if (!hasCateringInfo) {
-      const created = await cateringModuleService.createCateringProductInfos({
-        min_quantity: sample.catering.min_quantity,
-        quantity_step: sample.catering.quantity_step,
-        pricing_unit: sample.catering.pricing_unit,
-        ingredients: sample.catering.ingredients,
-        allergens: sample.catering.allergens,
-        dietary_tags: sample.catering.dietary_tags,
+    let shippingProfileId = fulfillmentSets[0]?.id
+    if (!shippingProfileId) {
+      const created = await fulfillmentModuleService.createShippingProfiles({
+        name: "Default",
+        type: "default",
       })
-      await link.create({
-        [Modules.PRODUCT]: { product_id: productId },
-        [CATERING_MODULE]: { catering_product_info_id: created.id },
+      shippingProfileId = created.id
+    }
+
+    for (const sample of SAMPLE_PRODUCTS) {
+      const { data: existingProducts } = await query.graph({
+        entity: "product",
+        fields: ["id", "handle"],
+        filters: { handle: sample.handle },
       })
-      logger.info(`Linked catering info to "${sample.title}".`)
+
+      let productId = existingProducts[0]?.id
+      if (!productId) {
+        const { result } = await createProductsWorkflow(container).run({
+          input: {
+            products: [
+              {
+                title: sample.title,
+                handle: sample.handle,
+                description: sample.description,
+                status: ProductStatus.PUBLISHED,
+                category_ids: [categoryIds[sample.category]],
+                shipping_profile_id: shippingProfileId,
+                thumbnail: `${backendUrl}/static/placeholders/${sample.image}`,
+                images: [{ url: `${backendUrl}/static/placeholders/${sample.image}` }],
+                options: [{ title: "Wersja", values: ["Standard"] }],
+                variants: [
+                  {
+                    title: "Standard",
+                    manage_inventory: false,
+                    options: { Wersja: "Standard" },
+                    prices: [{ amount: sample.price, currency_code: CURRENCY_CODE }],
+                  },
+                ],
+                sales_channels: [{ id: salesChannel.id }],
+              },
+            ],
+          },
+        })
+        productId = result[0].id
+        logger.info(`Created product "${sample.title}".`)
+      }
+
+      const { data: cateringInfos } = await query.graph({
+        entity: "product",
+        fields: ["id", "catering_product_info.id"],
+        filters: { id: productId },
+      })
+      const hasCateringInfo = Boolean(
+        (cateringInfos[0] as { catering_product_info?: { id: string } })
+          ?.catering_product_info
+      )
+      if (!hasCateringInfo) {
+        const created = await cateringModuleService.createCateringProductInfos({
+          min_quantity: sample.catering.min_quantity,
+          quantity_step: sample.catering.quantity_step,
+          pricing_unit: sample.catering.pricing_unit,
+          ingredients: sample.catering.ingredients,
+          allergens: sample.catering.allergens,
+          dietary_tags: sample.catering.dietary_tags,
+        })
+        await link.create({
+          [Modules.PRODUCT]: { product_id: productId },
+          [CATERING_MODULE]: { catering_product_info_id: created.id },
+        })
+        logger.info(`Linked catering info to "${sample.title}".`)
+      }
     }
   }
 

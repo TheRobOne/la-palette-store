@@ -2,7 +2,7 @@
 
 ## Overview
 
-Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backend (`@medusajs/medusa` latest, Node 20+, PostgreSQL 15+) and an optional storefront (Next.js, Tanstack, etc...).
+La Palette Store — a Turborepo workspace containing only the Medusa backend (`@medusajs/medusa`, Store API + Admin). The storefront lives in the la-palette-garden repository (`lapalettegarden.pl/catering`) and is the Store API's only client; it is not part of this repo, so do not scaffold one here. Store API changes are documented for it in `specs/<feature>/contracts/` (see `.specify/memory/constitution.md`).
 
 ## Directory Structure
 
@@ -21,12 +21,9 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │       ├── modules/          # Custom modules (service + models + migrations)
 │   │       ├── subscribers/      # Event subscribers
 │   │       └── workflows/        # Workflows and workflow steps
-│   └── storefront/               # OPTIONAL storefront
 ├── eslint.config.ts              # Root ESLint: @medusajs/eslint-plugin recommended
 ├── turbo.json                    # Task graph: build, dev, start, lint, test, seed
 ```
-
-**`apps/storefront` is optional and may not exist.** It is skipped when the user chooses not to install it. Before running any storefront command, referencing storefront files, or assuming a full-stack change is possible, check that `apps/storefront/` exists. If it doesn't, the project is backend-only — do not scaffold it or suggest it was deleted by mistake.
 
 Each app can have its own nested `AGENTS.md`; agents read the nearest one in the directory tree, so put app-specific context there rather than expanding this file.
 
@@ -46,35 +43,33 @@ Use that manager for every command and never introduce a second lockfile. Below,
 
 ## Commands
 
-Run from the repo root unless noted. Turbo skips missing apps automatically.
+Run from the repo root unless noted.
 
 ### Development
 
 ```bash
-<pm> run dev                # all apps
-<pm> run backend:dev        # backend only (http://localhost:9000, admin at /app)
-<pm> run storefront:dev     # storefront only (http://localhost:8000)
+<pm> run dev                # backend (http://localhost:9000, admin at /app)
 ```
 
 ### Build
 
 ```bash
-<pm> run build              # all apps
+<pm> run build              # backend
 <pm> run start              # build (via turbo dependsOn) then start
 ```
 
 ### Lint
 
 ```bash
-<pm> run lint                          # all apps via turbo
+<pm> run lint                          # via turbo
 cd apps/backend && <pm> run lint       # medusa lint
-cd apps/storefront && <pm> run lint    # next lint
 ```
 
-### Test (backend only; the storefront has no test suite)
+### Test
 
 ```bash
-<pm> run test                                              # all test tasks via turbo
+<pm> run test:unit                                         # unit tests via turbo (what CI runs)
+<pm> run test:integration                                  # backend http + modules suites (needs the dev DB)
 cd apps/backend && <pm> run test:unit                      # **/src/**/__tests__/**/*.unit.spec.ts
 cd apps/backend && <pm> run test:integration:modules       # **/src/modules/*/__tests__/**
 cd apps/backend && <pm> run test:integration:http          # **/integration-tests/http/*.spec.ts
@@ -94,7 +89,7 @@ cd apps/backend
 <pm> exec medusa db:generate <module-name>   # generate migrations for a custom module
 <pm> exec medusa db:migrate                  # run migrations
 <pm> exec medusa user -e admin@test.com -p supersecret
-<pm> run backend:seed                        # from root; seeds initial data
+<pm> run seed                                # from root; seeds initial data
 ```
 
 ## Medusa Skills & MCP Server
@@ -105,7 +100,6 @@ These are optional but strongly recommended — they give documentation-backed a
 
 - `building-with-medusa` — any backend work: modules, API routes, workflows, data models, module links
 - `building-admin-dashboard-customizations` — anything under `apps/backend/src/admin`
-- `building-storefronts` — anything under `apps/storefront`
 - `db-generate` / `db-migrate` / `new-user` — the DB and user commands above
 
 If they are not installed, suggest:
@@ -136,18 +130,16 @@ claude mcp add --transport http medusa https://docs.medusajs.com/mcp # or agent 
 
 ## Common Mistakes
 
-- Running storefront commands without checking that `apps/storefront/` exists.
 - Assuming a package manager instead of detecting it, or running a command that creates a second lockfile.
 - Installing a dependency at the root instead of inside the app that needs it (`cd apps/backend && <pm> add <pkg>`).
 - Editing a custom module's model without running `<pm> exec medusa db:generate <module>` — the migration is missing and the change silently never applies.
 - Writing raw SQL or importing DB clients directly in the backend instead of going through module services / workflows.
-- Calling the Medusa API from the storefront without `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`; requests fail with a publishable-key error, not an obvious 401.
 - Running the test task without a reachable PostgreSQL — integration suites need a live DB.
 - Silencing `@medusajs/*` ESLint rules instead of fixing the underlying pattern.
 
 ## Off-Limits
 
-- `apps/backend/.medusa/`, `.next/`, `dist/`, `out/`, `.turbo/` — build output, excluded from the workspace and regenerated.
+- `apps/backend/.medusa/`, `dist/`, `out/`, `.turbo/` — build output, excluded from the workspace and regenerated.
 - The lockfile (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json` — whichever this install produced) — never hand-edit or delete; change it only as a side effect of a package manager command.
 - `.env` / `.env.local` — never commit, print, or copy secret values out of them. Edit `.env.template` instead when documenting a new variable.
 - Existing migrations in `src/modules/*/migrations/` — add a new migration rather than rewriting one that may already have run.
