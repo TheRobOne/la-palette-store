@@ -1,17 +1,23 @@
 /**
  * Points each product at its photo in static/products/<handle>.<ext>,
- * replacing the placeholder thumbnail. Idempotent; rerun after adding photos:
+ * replacing the placeholder thumbnail, and publishes it. Products still on a
+ * placeholder are set to draft so the shop shows only photographed items.
+ * Idempotent; rerun after adding photos:
  *
  *   npx medusa exec ./src/scripts/set-product-images.ts
  */
 import fs from "node:fs"
 import path from "node:path"
 import type { ExecArgs } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  ProductStatus,
+} from "@medusajs/framework/utils"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 
 const PRODUCT_IMAGES_DIR = path.join(process.cwd(), "static", "products")
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"])
+const PLACEHOLDER_PATH = "/static/placeholders/"
 
 export default async function setProductImages({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
@@ -44,7 +50,11 @@ export default async function setProductImages({ container }: ExecArgs) {
     await updateProductsWorkflow(container).run({
       input: {
         selector: { id: product.id },
-        update: { thumbnail: url, images: [{ url }] },
+        update: {
+          thumbnail: url,
+          images: [{ url }],
+          status: ProductStatus.PUBLISHED,
+        },
       },
     })
     updated++
@@ -54,4 +64,25 @@ export default async function setProductImages({ container }: ExecArgs) {
   logger.info(
     `Product images: ${updated} updated, ${files.length - updated} unchanged or skipped.`
   )
+
+  // --- Hide products that still have only a placeholder ------------------
+  const { data: published } = await query.graph({
+    entity: "product",
+    fields: ["id", "handle", "thumbnail"],
+    filters: { status: ProductStatus.PUBLISHED },
+  })
+  const withoutPhoto = published.filter(
+    (p) =>
+      !p.handle?.startsWith("test-") &&
+      (!p.thumbnail || p.thumbnail.includes(PLACEHOLDER_PATH))
+  )
+  if (withoutPhoto.length > 0) {
+    await updateProductsWorkflow(container).run({
+      input: {
+        selector: { id: withoutPhoto.map((p) => p.id) },
+        update: { status: ProductStatus.DRAFT },
+      },
+    })
+    logger.info(`Set ${withoutPhoto.length} products without a photo to draft.`)
+  }
 }
