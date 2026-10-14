@@ -74,8 +74,8 @@ Monday's capacity and the customer sees its status.
 
 ### User Story 2 - Staff confirm or decline a request (Priority: P1)
 
-Staff see new requests in the pickup calendar and on the order, and confirm or decline each
-one. A confirmed request lets the customer pay; a declined one frees the place and the
+Staff see new requests in the pickup calendar and in a list of requests, and confirm or
+decline each one. A confirmed request lets the customer pay; a declined one frees the place and the
 customer learns about it.
 
 **Why this priority**: the kitchen's decision is the purpose of the feature; without it
@@ -87,7 +87,7 @@ it was declined.
 
 **Acceptance Scenarios**:
 
-1. **Given** a pending request, **When** staff open the pickup calendar or the order, **Then**
+1. **Given** a pending request, **When** staff open the pickup calendar or the request list, **Then**
    it is clearly marked as a request awaiting decision, with the time left to answer.
 2. **Given** a pending request, **When** staff confirm it, **Then** its status becomes
    "confirmed — awaiting payment" with the payment deadline, and the customer can pay.
@@ -143,7 +143,7 @@ moves to expired / cancelled, the day's capacity is released, and the status pag
    passes, **Then** the order is cancelled, its place is released and its status page says it
    was cancelled for lack of payment.
 3. **Given** an expiry happened, **When** staff look at the calendar, **Then** the request is
-   no longer counted and is shown as expired / cancelled on the order.
+   no longer counted and is shown as expired / cancelled in the request list.
 
 ---
 
@@ -211,19 +211,23 @@ terms offered to customers and new deadlines follow immediately.
   (not answered in time) or cancelled (not paid in time, or cancelled by staff); the backend
   MUST be the only place that changes it.
 - **FR-006**: Staff MUST be able to confirm or decline a pending request in the Admin from the
-  pickup calendar and from the order; confirming or declining an expired request MUST be
+  pickup calendar and from a list of requests (a request becomes an order in the Admin's
+  order list only once paid); confirming or declining an expired request MUST be
   refused.
 - **FR-007**: Confirmation MUST set a payment deadline (now + payment time, capped before the
   pickup window); the response deadline MUST be set when the request is sent (now + response
   time, capped likewise).
 - **FR-008**: The customer MUST be able to pay for a confirmed request within its payment time
-  from a status page unique to that order; payment MUST be refused for a request that is
+  from a status page unique to that request; payment MUST be refused for a request that is
   pending, declined, expired, cancelled or past its payment deadline.
 - **FR-009**: A pending request past its response deadline MUST become expired, and a
   confirmed request past its payment deadline MUST become cancelled, automatically and
   without staff action; both MUST release capacity.
+- **FR-009a**: What the customer pays for after confirmation MUST be exactly what they sent in
+  the request (products, quantities, term); a request whose contents were changed afterwards
+  MUST NOT be payable.
 - **FR-010**: The customer MUST be informed of every state change (confirmed with the payment
-  deadline, declined, expired, cancelled) on the order's status page; e-mail notification is
+  deadline, declined, expired, cancelled) on the request's status page; e-mail notification is
   added by the transactional e-mail feature.
 - **FR-011**: Staff MUST be able to set in the Admin: the lead time for requests (hours), the
   response time (hours, default 24) and the payment time (hours, default 24).
@@ -238,9 +242,9 @@ terms offered to customers and new deadlines follow immediately.
 - **Window rule** (from 004): gains an "on request" flag.
 - **Scheduling settings** (from 004, per fulfillment method): gain the lead time for
   requests, the response time and the payment time.
-- **Request** — the state of an order placed for an on-request term: state, response
-  deadline, payment deadline, decision time and who decided; tied to the order and to its
-  capacity record (booking).
+- **Request** — a customer's not-yet-binding order for an on-request term: its contents as
+  sent, state, response deadline, payment deadline, decision time and who decided; it holds a
+  place in the daily capacity and becomes a regular order when paid.
 
 ## Success Criteria *(mandatory)*
 
@@ -261,11 +265,12 @@ terms offered to customers and new deadlines follow immediately.
 
 - Default lead time for requests: 72 h (editable), so that both 24 h deadlines fit before the
   pickup; the standard 48 h stays for standard terms.
-- Payment in this feature uses the existing test payment; Przelewy24 (a later feature) must
-  support paying an existing confirmed order. E-mail notifications come with the e-mail
+- Payment in this feature uses the existing test payment; a confirmed request is paid through
+  the same checkout payment step as a standard order, so Przelewy24 (a later feature) needs no
+  special "pay an existing order" support. E-mail notifications come with the e-mail
   feature; until then the status page is the customer's channel.
 - The status page is reached through the link shown after sending the request (unique,
-  unguessable order link); customer accounts are not required.
+  unguessable link); customer accounts are not required.
 - The customer cannot withdraw a request themselves in this feature (they contact the venue;
   staff decline it).
 - Expiry runs as a periodic check (at most every few minutes) and payment always re-checks the
