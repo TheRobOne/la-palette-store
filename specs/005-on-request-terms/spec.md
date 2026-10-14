@@ -65,6 +65,10 @@ Monday's capacity and the customer sees its status.
    the request, **Then** it is rejected with the same messages as a standard order.
 5. **Given** the daily capacity of that Monday is used up (by orders and pending requests),
    **When** the customer looks at terms, **Then** the day is not offered.
+6. **Given** a standard (not on-request) window in the cart, **When** the order is sent
+   without payment as a request, **Then** it is refused and the customer must pay as usual;
+   **and given** an on-request window, **When** an immediate paid order is attempted,
+   **Then** it is refused and only a request can be sent.
 
 ---
 
@@ -195,6 +199,12 @@ terms offered to customers and new deadlines follow immediately.
 - **FR-003**: Choosing an on-request term MUST lead to sending a request without any payment;
   the same order rules as for standard orders (minimum order value, invoice data, term
   validity, capacity under concurrency) MUST be enforced when the request is sent.
+- **FR-003a**: The path is decided by the chosen window alone, as configured by staff at the
+  moment the customer sends the order: a window marked "on request" MUST go through the
+  request path (no payment at checkout), and every other window MUST go through the standard
+  path with payment. The customer and the storefront MUST NOT be able to choose the other
+  path — the backend MUST refuse a request without payment for a standard window and MUST
+  refuse an immediate payment-and-order for an on-request window.
 - **FR-004**: A request MUST take a place in the day's capacity from the moment it is sent and
   keep it while pending or confirmed; declined, expired and cancelled requests MUST NOT count.
 - **FR-005**: Each request MUST have a state: pending → confirmed → paid, or declined, expired
