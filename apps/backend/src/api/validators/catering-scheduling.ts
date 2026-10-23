@@ -44,8 +44,16 @@ export const AdminScheduleBody = z.object({
   lead_time_hours: z.number().int(),
   booking_horizon_days: z.number().int(),
   daily_capacity: z.number().int(),
+  request_lead_time_hours: z.number().int().optional(),
+  request_response_hours: z.number().int().optional(),
+  request_payment_hours: z.number().int().optional(),
   windows: z.array(
-    z.object({ weekday: z.number().int(), start: time, end: time })
+    z.object({
+      weekday: z.number().int(),
+      start: time,
+      end: time,
+      requires_confirmation: z.boolean().optional().default(false),
+    })
   ),
 })
 export type AdminScheduleBodyType = z.infer<typeof AdminScheduleBody>
@@ -64,3 +72,21 @@ export const AdminRescheduleBody = z.object({
   confirm: z.boolean().optional().default(false),
 })
 export type AdminRescheduleBodyType = z.infer<typeof AdminRescheduleBody>
+
+export const StoreSendRequestBody = z.object({ cart_id: z.string().min(1) })
+export type StoreSendRequestBodyType = z.infer<typeof StoreSendRequestBody>
+
+const REQUEST_STATUSES = ["requested", "confirmed", "active", "declined", "expired", "canceled"] as const
+
+export const AdminRequestsQuery = z.object({
+  status: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(",").filter(Boolean) : undefined))
+    .refine((v) => !v || v.every((s) => (REQUEST_STATUSES as readonly string[]).includes(s)), {
+      message: "Unknown status",
+    }),
+  from: dateString.optional(),
+  to: dateString.optional(),
+})
+export type AdminRequestsQueryType = z.infer<typeof AdminRequestsQuery>

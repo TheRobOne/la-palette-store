@@ -6,6 +6,7 @@ import {
   adminFetch,
   addDaysIso,
   formatPlDate,
+  timeLeft,
   todayIso,
   WEEKDAYS,
 } from "../../lib/catering-api"
@@ -22,6 +23,11 @@ type CalendarDay = {
       display_id: number | null
       email: string | null
       status: string | null
+      // spec 005: requested / confirmed requests are shown with a badge
+      booking_status?: "requested" | "confirmed" | "active"
+      request_id?: string
+      response_deadline?: string | null
+      payment_deadline?: string | null
     }[]
   }[]
 }
@@ -159,7 +165,20 @@ const PickupsPage = () => {
                   </Text>
                   <div className="flex flex-wrap gap-x-3">
                     {w.orders.map((o, i) =>
-                      o.order_id ? (
+                      o.booking_status === "requested" || o.booking_status === "confirmed" ? (
+                        <Link
+                          key={o.request_id ?? i}
+                          to="/pickup-requests"
+                          className="txt-small text-ui-fg-interactive"
+                        >
+                          {o.email ?? "zapytanie"}{" "}
+                          <Badge size="2xsmall" color={o.booking_status === "requested" ? "orange" : "blue"}>
+                            {o.booking_status === "requested"
+                              ? `Zapytanie – odpowiedz ${timeLeft(o.response_deadline ?? null)}`
+                              : `Potwierdzone – płatność ${timeLeft(o.payment_deadline ?? null)}`}
+                          </Badge>
+                        </Link>
+                      ) : o.order_id ? (
                         <Link
                           key={o.order_id}
                           to={`/orders/${o.order_id}`}

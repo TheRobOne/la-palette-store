@@ -2,8 +2,19 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
-import { checkTerm } from "../modules/catering/scheduling/availability"
+import type { RequestSnapshot } from "../modules/catering/models/booking"
+import {
+  checkTerm,
+  termRequiresConfirmation,
+} from "../modules/catering/scheduling/availability"
 import { loadSchedulingContext } from "../modules/catering/scheduling/load"
+import {
+  canPay,
+  paymentTimeOverError,
+  requiresConfirmationError,
+  snapshotMatches,
+  snapshotMismatchError,
+} from "../modules/catering/scheduling/requests"
 import {
   type CateringTerm,
   lockBusyError,
@@ -60,21 +71,64 @@ const sameTerm = (
   booking.end_time === term.end &&
   booking.fulfillment_method === term.method
 
+/** What the completion hook must undo if a later workflow step fails. */
+export type BookingCompensation =
+  | { created: string }
+  | { revert: { id: string; status: "confirmed" } }
+  | undefined
+
+type CartForReservation = {
+  id: string
+  items?: { variant_id?: string | null; quantity: number | string }[] | null
+}
+
 /**
- * Re-checks the term and books it for the cart. Returns the id of the
- * booking created by this call (for compensation), or undefined when the
- * cart already holds an active booking for the same term — a retried
- * completion must neither count it twice nor delete it on failure.
+ * Takes the cart's place in the daily capacity when it is completed.
+ *
+ * - Standard window (004): re-check the term and create an `active` booking,
+ *   or accept an existing `active` booking for the same term (retried
+ *   completion — neither counted twice nor deleted on failure).
+ * - On-request window (spec 005, FR-003a): only a `confirmed` request within
+ *   its payment deadline whose cart still matches the snapshot can be paid;
+ *   it becomes `active`. Its place is already held, so capacity is not
+ *   re-checked.
  */
 export async function reservePickupTerm(
   container: MedusaContainer,
-  cartId: string,
+  cart: CartForReservation,
   term: CateringTerm
-): Promise<string | undefined> {
+): Promise<BookingCompensation> {
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
   return withCapacityLock(container, term.date, async () => {
-    const existing = await catering.listBookings({ cart_id: cartId, status: "active" })
+    const context = await loadSchedulingContext(container, {
+      method: term.method,
+      from: term.date,
+      to: term.date,
+    })
+
+    if (termRequiresConfirmation(term, context)) {
+      const [request] = await catering.listBookings(
+        { cart_id: cart.id, requires_confirmation: true },
+        { order: { created_at: "DESC" }, take: 1 }
+      )
+      if (!request || request.status === "requested") {
+        throw requiresConfirmationError()
+      }
+      if (request.status === "active" && sameTerm(request, term)) {
+        return undefined
+      }
+      if (!canPay(request, new Date())) {
+        throw paymentTimeOverError()
+      }
+      if (!snapshotMatches(request.request_snapshot as RequestSnapshot, cart, term)) {
+        throw snapshotMismatchError()
+      }
+      await catering.updateBookings({ id: request.id, status: "active" })
+      return { revert: { id: request.id, status: "confirmed" } }
+    }
+
+    const existing = await catering.listBookings({ cart_id: cart.id, status: "active" })
     if (existing.some((b) => sameTerm(b, term))) {
       return undefined
     }
@@ -84,35 +138,34 @@ export async function reservePickupTerm(
       await catering.deleteBookings(existing.map((b) => b.id))
     }
 
-    const context = await loadSchedulingContext(container, {
-      method: term.method,
-      from: term.date,
-      to: term.date,
-    })
     if (checkTerm(term, context).length > 0) {
       throw unavailableTermError(term)
     }
 
     const booking = await catering.createBookings({
-      cart_id: cartId,
+      cart_id: cart.id,
       fulfillment_method: term.method,
       date: term.date,
       start_time: term.start,
       end_time: term.end,
       status: "active",
     })
-    return booking.id
+    return { created: booking.id }
   })
 }
 
-/** Compensation: removes the booking created by reservePickupTerm. */
+/** Compensation: removes a created booking or returns a paid request to `confirmed`. */
 export async function releasePickupBooking(
-  bookingId: string | undefined,
+  compensation: BookingCompensation,
   container: MedusaContainer
 ): Promise<void> {
-  if (!bookingId) {
+  if (!compensation) {
     return
   }
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
-  await catering.deleteBookings(bookingId)
+  if ("created" in compensation) {
+    await catering.deleteBookings(compensation.created)
+  } else {
+    await catering.updateBookings(compensation.revert)
+  }
 }

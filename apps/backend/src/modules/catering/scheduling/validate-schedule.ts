@@ -6,7 +6,11 @@ export type ScheduleInput = {
   lead_time_hours: number
   booking_horizon_days: number
   daily_capacity: number
-  windows: { weekday: number; start: string; end: string }[]
+  // on-request terms (spec 005); omitted = keep the current value
+  request_lead_time_hours?: number
+  request_response_hours?: number
+  request_payment_hours?: number
+  windows: { weekday: number; start: string; end: string; requires_confirmation?: boolean }[]
 }
 
 const WEEKDAY_NAMES = ["", "pon.", "wt.", "śr.", "czw.", "pt.", "sob.", "niedz."]
@@ -34,6 +38,21 @@ export function assertValidSchedule(input: ScheduleInput): void {
     input.booking_horizon_days > 365
   ) {
     fail("Zakres rezerwacji musi wynosić od 1 do 365 dni.")
+  }
+
+  if (
+    input.request_lead_time_hours !== undefined &&
+    (!Number.isInteger(input.request_lead_time_hours) || input.request_lead_time_hours < 0)
+  ) {
+    fail("Wyprzedzenie zapytań musi być liczbą całkowitą godzin ≥ 0.")
+  }
+  for (const [value, label] of [
+    [input.request_response_hours, "Czas na odpowiedź"],
+    [input.request_payment_hours, "Czas na płatność"],
+  ] as const) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 168)) {
+      fail(`${label} musi wynosić od 1 do 168 godzin.`)
+    }
   }
 
   for (const w of input.windows) {

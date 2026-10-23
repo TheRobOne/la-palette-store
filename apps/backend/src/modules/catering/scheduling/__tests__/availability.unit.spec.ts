@@ -1,4 +1,9 @@
-import { checkTerm, computeAvailability, type ScheduleInputs } from "../availability"
+import {
+  checkTerm,
+  computeAvailability,
+  termRequiresConfirmation,
+  type ScheduleInputs,
+} from "../availability"
 
 // Default schedule: Tuesday–Sunday, hourly windows 10:00–18:00.
 const DEFAULT_WINDOWS = [2, 3, 4, 5, 6, 7].flatMap((weekday) =>
@@ -157,5 +162,81 @@ describe("checkTerm", () => {
     expect(checkTerm({ ...term, date: "2026-12-20" }, inputs())).toEqual([
       "beyond_horizon",
     ])
+  })
+})
+
+// spec 005 — on-request windows
+describe("on-request windows (unit, no database)", () => {
+  // Monday (weekday 1) on request, 10:00–18:00 hourly
+  const MONDAY_ON_REQUEST = [10, 11, 12, 13, 14, 15, 16, 17].map((h) => ({
+    weekday: 1,
+    start_time: `${h}:00`,
+    end_time: `${h + 1}:00`,
+    requires_confirmation: true,
+  }))
+  const withRequests = (overrides: Partial<ScheduleInputs> = {}) =>
+    inputs({
+      schedule: {
+        is_enabled: true,
+        lead_time_hours: 48,
+        booking_horizon_days: 60,
+        request_lead_time_hours: 72,
+      },
+      windows: [...DEFAULT_WINDOWS, ...MONDAY_ON_REQUEST],
+      ...overrides,
+    })
+  const dayOf = (date: string, overrides: Partial<ScheduleInputs> = {}) =>
+    computeAvailability({ ...withRequests(overrides), from: date, to: date })[0]
+
+  it("lists Monday windows as requiring confirmation", () => {
+    const monday = dayOf("2026-10-26")
+    expect(monday.available).toBe(true)
+    expect(monday.windows).toHaveLength(8)
+    expect(monday.windows.every((w) => w.requires_confirmation)).toBe(true)
+    expect(dayOf("2026-10-27").windows.every((w) => !w.requires_confirmation)).toBe(true)
+  })
+
+  it("applies the request lead time (72 h) to on-request windows only", () => {
+    // now: Tue 2026-10-20 09:00; Thu 10:00 is 49 h ahead → standard ok
+    expect(dayOf("2026-10-22").available).toBe(true)
+    // a Thursday window on request at the same time is inside 72 h
+    const thursdayOnRequest = [{ weekday: 4, start_time: "10:00", end_time: "11:00", requires_confirmation: true }]
+    const day = dayOf("2026-10-22", { windows: thursdayOnRequest })
+    expect(day.windows[0]).toEqual({
+      start: "10:00",
+      end: "11:00",
+      available: false,
+      requires_confirmation: true,
+    })
+    expect(day.reason).toEqual("lead_time")
+    // Monday 2026-10-26 10:00 is 145 h ahead → fine
+    expect(dayOf("2026-10-26").windows[0].available).toBe(true)
+  })
+
+  it("supports a mixed day (standard morning, on-request afternoon)", () => {
+    const mixed = [
+      { weekday: 6, start_time: "10:00", end_time: "11:00" },
+      { weekday: 6, start_time: "14:00", end_time: "15:00", requires_confirmation: true },
+    ]
+    const saturday = dayOf("2026-10-24", { windows: mixed })
+    expect(saturday.windows.map((w) => w.requires_confirmation)).toEqual([false, true])
+  })
+
+  it("counts requests against capacity through bookingsPerDate", () => {
+    expect(dayOf("2026-10-26", { bookingsPerDate: { "2026-10-26": 10 } }).reason).toEqual("full")
+  })
+
+  it("tells whether a term is on request", () => {
+    const i = withRequests()
+    expect(termRequiresConfirmation({ date: "2026-10-26", start: "10:00", end: "11:00" }, i)).toBe(true)
+    expect(termRequiresConfirmation({ date: "2026-10-27", start: "10:00", end: "11:00" }, i)).toBe(false)
+    expect(termRequiresConfirmation({ date: "2026-10-26", start: "10:30", end: "11:00" }, i)).toBe(false)
+  })
+
+  it("checkTerm uses the request lead time for an on-request term", () => {
+    const thursdayOnRequest = [{ weekday: 4, start_time: "10:00", end_time: "11:00", requires_confirmation: true }]
+    expect(
+      checkTerm({ date: "2026-10-22", start: "10:00", end: "11:00" }, withRequests({ windows: thursdayOnRequest }))
+    ).toEqual(["lead_time"])
   })
 })

@@ -157,6 +157,10 @@ implemented and verified independently.
 - [X] T044 [P] [US4] Storefront no-index: `apps/storefront/src/app/robots.ts` returns `Disallow: /` when `ALLOW_INDEXING !== "true"`; `apps/storefront/next.config.ts` adds the `X-Robots-Tag: noindex, nofollow` header; root layout metadata sets `robots: { index: false, follow: false }` in that case
 - [X] T045 [US4] Extend `apps/backend/package.json` `predeploy` to `medusa db:migrate && medusa exec ./src/scripts/seed.js` (runs inside `.medusa/server` on Railway) and confirm the built seed path exists after `pnpm --filter backend build`
 **Staging (T046–T050) abandoned for now, 2026-09-28 stakeholder decision.**
+**Update 2026-10-23:** the `staging` environment was in fact created in the Railway dashboard
+(backend deploys since 2026-09-28, healthy since 2026-09-30); the storefront moved to
+la-palette-garden on Vercel, which uses this backend. Current state: root `README.md`,
+"Environments".
 `railway login` / `railway login --browserless` both fail with "Cannot login in
 non-interactive mode" in this environment — no way to create the `staging` Railway
 environment from here. Revisit once a human can complete that login (dashboard or CLI on a
@@ -164,12 +168,12 @@ real terminal).
 
 - [X] T046 [US4] ~~Blocked on user~~: GitHub remote created and `main` pushed
   (`https://github.com/TheRobOne/la-palette-store`, public)
-- [ ] T047 [US4] **Abandoned for now**: create empty Railway environment `staging` in
+- [X] T047 [US4] Done in the dashboard (DB service `Postgres-v4yf`): create empty Railway environment `staging` in
   project `la-palette-store` (`railway environment new staging`, no duplicate), deploy the
   `postgres` template into it with `POSTGRES_DB=lapalette`
-- [ ] T048 **Abandoned for now**: [US4] In Railway `staging`, create service `backend` from the GitHub repo: root directory `apps/backend`, build `pnpm install --frozen-lockfile && pnpm build`, start `cd .medusa/server && npm install && npm run predeploy && npm run start`, health check `/health`, "Wait for CI" on, variables per `contracts/configuration.md` (`APP_ENV=staging`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, random `JWT_SECRET`/`COOKIE_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD` provided by the user, `MEDUSA_WORKER_MODE=shared`, `DISABLE_MEDUSA_ADMIN=false`, `ALLOW_INDEXING=false`, CORS values), generate a Railway domain and set `MEDUSA_BACKEND_URL` to it
-- [ ] T049 **Abandoned for now**: [US4] In Railway `staging`, create service `storefront` from the GitHub repo: root `apps/storefront`, build `pnpm install --frozen-lockfile && pnpm build`, start `pnpm start`, "Wait for CI" on, variables `MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (from the staging seed log), `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION=pl`, `ALLOW_INDEXING=false`; generate a domain and update backend `STORE_CORS`/`AUTH_CORS`
-- [ ] T050 **Abandoned for now**: [US4] Validate staging per quickstart V5: merge to `main` → live < 15 min; `/status` 200; local credentials rejected; `X-Robots-Tag` present; a CI failure leaves the previous deployment running
+- [X] T048 [US4] Done in the dashboard (deviations: root `/`, `pnpm --filter ./apps/backend build`, start from `apps/backend/.medusa/server`, "Wait for CI" off): In Railway `staging`, create service `backend` from the GitHub repo: root directory `apps/backend`, build `pnpm install --frozen-lockfile && pnpm build`, start `cd .medusa/server && npm install && npm run predeploy && npm run start`, health check `/health`, "Wait for CI" on, variables per `contracts/configuration.md` (`APP_ENV=staging`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, random `JWT_SECRET`/`COOKIE_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD` provided by the user, `MEDUSA_WORKER_MODE=shared`, `DISABLE_MEDUSA_ADMIN=false`, `ALLOW_INDEXING=false`, CORS values), generate a Railway domain and set `MEDUSA_BACKEND_URL` to it
+- [ ] T049 **Superseded** (storefront is la-palette-garden on Vercel, spec 002+): [US4] In Railway `staging`, create service `storefront` from the GitHub repo: root `apps/storefront`, build `pnpm install --frozen-lockfile && pnpm build`, start `pnpm start`, "Wait for CI" on, variables `MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` (from the staging seed log), `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION=pl`, `ALLOW_INDEXING=false`; generate a domain and update backend `STORE_CORS`/`AUTH_CORS`
+- [ ] T050 **Partly verified 2026-10-23** (`/status` 200, `X-Robots-Tag` present, `main` → live; CI gate not yet, see README): [US4] Validate staging per quickstart V5: merge to `main` → live < 15 min; `/status` 200; local credentials rejected; `X-Robots-Tag` present; a CI failure leaves the previous deployment running
 
 **Checkpoint**: All stories complete
 

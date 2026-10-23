@@ -122,11 +122,29 @@ Full contract: [specs/004-pickup-scheduling/contracts/store-api.md](../../specs/
 Cart metadata is merged **shallowly** by Medusa (`mergeMetadata`): top-level keys from different
 features coexist; a nested object such as `catering_term` is replaced as a whole; `""` removes a key.
 
+### On-request terms (request → staff confirm → pay) — spec 005
+
+Full contract: [specs/005-on-request-terms/contracts/store-api.md](../../specs/005-on-request-terms/contracts/store-api.md).
+
+- Slot windows carry `requires_confirmation`. For such a window the shop sends a **request**
+  instead of paying: `POST /store/catering/requests { cart_id }` (no payment collection). The
+  backend refuses the other path both ways (FR-003a).
+- The cart stays a cart; the request is a booking in state `requested` that holds capacity.
+  Status for the customer: `GET /store/catering/requests/:cart_id` (`requested`, `confirmed`,
+  `active` + `order_id`, `declined`, `expired`, `canceled`) — uncached.
+- After staff confirm, the customer pays **the same, unchanged cart** with the normal checkout
+  payment step and `complete`; only then is a Medusa order created.
+- Expiry: `src/jobs/expire-pickup-requests.ts` every 5 min; payment re-checks deadlines anyway.
+- Staff: Admin "Zapytania" page, calendar badges, settings toggles; Admin API in
+  `specs/005-on-request-terms/contracts/admin-api.md`.
+- Events (no subscribers yet, for the future e-mail feature): `catering.request.created|confirmed|declined|expired|canceled`.
+
 ### Cart completion errors — `POST /store/carts/:id/complete`
 
 Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler
 (`src/workflows/hooks/complete-cart-validate.ts` — a hook takes only one handler, so add every
-future rule there), in this order: minimum order value → invoice data → pickup term. The term step
+future rule there), in this order: minimum order value → invoice data → pickup term → (on-request window only)
+confirmed request / payment deadline / cart unchanged since the request. The term step
 books the place (`src/lib/pickup-booking.ts`, lock key `catering:capacity:<date>`, also used by
 staff reschedules) and its compensation removes the booking if a later step fails. A rejected cart
 answers **400**:
@@ -134,6 +152,9 @@ answers **400**:
 ```json
 { "type": "invalid_data", "message": "Minimalna wartość zamówienia to 100,00 zł. Dodaj produkty za co najmniej 88,00 zł." }
 ```
+
+On-request errors: `Ten termin wymaga potwierdzenia kuchni — wyślij zapytanie.`,
+`Czas na płatność za to zamówienie minął.`, `Zamówienie różni się od wysłanego zapytania — skontaktuj się z nami.`
 
 Term errors: `Wybierz termin odbioru.`, `Wybrany termin odbioru (20.10.2026, 11:00–12:00) nie jest
 już dostępny. Wybierz inny termin.`, `Nie udało się zarezerwować terminu. Spróbuj ponownie za chwilę.`

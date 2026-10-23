@@ -13,8 +13,11 @@ type Snapshot = {
     is_enabled: boolean
     lead_time_hours: number
     booking_horizon_days: number
+    request_lead_time_hours: number
+    request_response_hours: number
+    request_payment_hours: number
   } | null
-  windows: { weekday: number; start_time: string; end_time: string }[]
+  windows: { weekday: number; start_time: string; end_time: string; requires_confirmation: boolean }[]
   createdSettingsId?: string
   createdScheduleId?: string
 }
@@ -43,12 +46,16 @@ const updatePickupScheduleStep = createStep(
             is_enabled: schedule.is_enabled,
             lead_time_hours: schedule.lead_time_hours,
             booking_horizon_days: schedule.booking_horizon_days,
+            request_lead_time_hours: schedule.request_lead_time_hours,
+            request_response_hours: schedule.request_response_hours,
+            request_payment_hours: schedule.request_payment_hours,
           }
         : null,
       windows: windows.map((w) => ({
         weekday: w.weekday,
         start_time: w.start_time,
         end_time: w.end_time,
+        requires_confirmation: w.requires_confirmation,
       })),
     }
 
@@ -63,6 +70,15 @@ const updatePickupScheduleStep = createStep(
       is_enabled: input.is_enabled,
       lead_time_hours: input.lead_time_hours,
       booking_horizon_days: input.booking_horizon_days,
+      ...(input.request_lead_time_hours !== undefined
+        ? { request_lead_time_hours: input.request_lead_time_hours }
+        : {}),
+      ...(input.request_response_hours !== undefined
+        ? { request_response_hours: input.request_response_hours }
+        : {}),
+      ...(input.request_payment_hours !== undefined
+        ? { request_payment_hours: input.request_payment_hours }
+        : {}),
     }
     if (schedule) {
       await catering.updateFulfillmentSchedules({ id: schedule.id, ...scheduleData })
@@ -84,6 +100,7 @@ const updatePickupScheduleStep = createStep(
           weekday: w.weekday,
           start_time: w.start,
           end_time: w.end,
+          requires_confirmation: !!w.requires_confirmation,
         }))
       )
     }

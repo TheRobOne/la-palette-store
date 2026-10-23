@@ -71,7 +71,8 @@ export async function setupPickup(container: MedusaContainer) {
 
   // --- Pickup fulfillment set ---------------------------------------------
   let fulfillmentSetId = location.fulfillment_sets?.find(
-    (set) => set?.type === "pickup" && set?.name === PICKUP_FULFILLMENT_SET_NAME
+    // typed explicitly: CI has no generated .medusa/types
+    (set: { type?: string; name?: string } | null) => set?.type === "pickup" && set?.name === PICKUP_FULFILLMENT_SET_NAME
   )?.id
   if (!fulfillmentSetId) {
     await createLocationFulfillmentSetWorkflow(container).run({

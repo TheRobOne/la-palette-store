@@ -15,6 +15,9 @@ const WindowRule = model
     // HH:mm, start_time < end_time
     start_time: model.text(),
     end_time: model.text(),
+    // true = the window is "on request": the customer sends a request without
+    // paying and staff confirm it first (specs/005-on-request-terms)
+    requires_confirmation: model.boolean().default(false),
   })
   .indexes([
     {

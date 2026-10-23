@@ -1,29 +1,21 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 2.1.0 → 2.2.0
-Bump rationale: MINOR — two new binding rules (checkout "fulfillment method" step, optional
-company invoice) and materially changed scope of the delivery rules, which now apply only
-"when delivery is offered". No principle is removed or redefined.
+Version change: 2.2.0 → 2.3.0
+Bump rationale: MINOR — adds a new ordering path ("on-request terms": request without payment →
+staff confirm/decline → payment) with new binding rules and test requirements. Nothing is
+removed or redefined; the standard checkout path is unchanged.
 
 Modified principles:
-- II. Event-Catering Ordering UX — launch is pickup-only (delivery zones deferred); new
-  "fulfillment method" checkout step built so delivery can be added without rebuilding the
-  path; date/slot now for pickup (and delivery when offered); minimum order value applies to
-  every fulfillment method, is staff-configurable (launch 100 zł gross) and shown in the
-  cart; delivery zones/costs validated "when delivery is offered"; new optional company
-  invoice (NIP + company data) saved on the order and visible in the Admin; checkout path
-  wording "delivery" → "fulfillment method".
-- IV. Food & Consumer-Law Transparency — delivery-cost disclosure applies when delivery is
-  offered.
-- VI. Tested Critical Commerce Paths — "delivery-slot" → "pickup/delivery-slot" (wording).
-- VIII. Backend as Source of Truth — delivery zones and costs listed as a rule only when
-  delivery is offered.
-
-Modified sections:
-- Technology Stack & Constraints — Admin scope adds minimum order value and invoice data;
-  new "Fulfillment" bullet (native pickup fulfillment set now; delivery later as a separate
-  shipping fulfillment set without changing pickup).
+- II. Event-Catering Ordering UX — new "On-request terms" rule: path without upfront payment,
+  clear labelling in the shop, request not binding until paid, capacity held from the request,
+  automatic release after the staff response time / payment time, confirm-or-decline only,
+  all parameters editable in the Admin (launch values 24 h / 24 h).
+- VI. Tested Critical Commerce Paths — tests for request, confirmation, decline and both
+  expiries, including capacity release.
+- VIII. Backend as Source of Truth — backend owns the on-request state machine (requested →
+  confirmed → paid / declined / expired), deadlines and refusal of payment for unconfirmed or
+  expired requests.
 
 Added sections: none
 Removed sections: none
@@ -31,11 +23,12 @@ Removed sections: none
 Follow-up TODOs: none.
 
 Documents requiring updates (not changed by this amendment):
-- ✅ apps/backend/AGENTS.md "Kontrakty dla storefrontu" — already describes pickup-only,
-  min order value (store metadata, default 100) and order-rules endpoint (commit 7f255f6).
-- ⚠ apps/backend/AGENTS.md — add the invoice-data contract once that feature lands.
-- ⚠ la-palette-garden AGENTS.md / docs/plans — cart and checkout plans must follow the
-  pickup-only scope, the fulfillment-method step and the optional invoice.
+- ⚠ specs/004-pickup-scheduling/contracts/store-api.md — will gain a non-breaking
+  `requires_confirmation` window field in the on-request feature spec.
+- ⚠ apps/backend/AGENTS.md "Kontrakty dla storefrontu" — request/confirm/pay contract once the
+  feature lands.
+- ⚠ Future Przelewy24 spec — must support paying an existing (confirmed) order.
+- ⚠ la-palette-garden checkout — request path without payment and a "pay for order" page.
 - ✅ .specify/templates/* — read principles at runtime; no change needed.
 -->
 
@@ -88,6 +81,21 @@ business requirement, even though its code lives outside this repository:
 - The path from landing page to placed order MUST remain short: product → cart → checkout
   (contact, fulfillment method, date/slot, payment) → confirmation, with guest checkout
   allowed.
+- **On-request terms**: staff MAY mark pickup windows (e.g. days the kitchen does not normally
+  work) as requiring confirmation. For such a term the path is: product → cart → checkout
+  (contact, fulfillment method, date/slot) → request sent without payment → staff confirm or
+  decline → after confirmation the customer pays for that order → paid order. Rules:
+  - the storefront MUST show clearly, before the customer sends anything, that the term
+    requires the kitchen's confirmation and that payment happens only after it;
+  - a request is not a binding order; the order becomes final only once paid, and the
+    payment step after confirmation is subject to the same consumer-law requirements as the
+    standard checkout (Principle IV);
+  - a request takes a place in the daily capacity from the moment it is sent; no staff
+    response within the configured time, or no payment within the configured time after
+    confirmation, MUST automatically release it and inform the customer;
+  - staff confirm or decline only; proposing another term is out of scope;
+  - which windows are on request, their minimum lead time, the staff response time and the
+    payment time (launch values 24 h and 24 h) MUST be editable in the Admin without a deploy.
 
 Rationale: event catering is ordered by date and headcount, not by single items; the UX must
 prevent orders that the kitchen cannot fulfil.
@@ -145,7 +153,10 @@ Rationale: most catering orders are browsed on phones; slow or inaccessible page
 ### VI. Tested Critical Commerce Paths
 
 - Automated tests MUST cover: price and total calculation, minimum quantity/order value rules,
-  lead-time and pickup/delivery-slot validation, and the full checkout-to-order flow.
+  lead-time and pickup/delivery-slot validation, and the full checkout-to-order flow, and — for
+  on-request terms — sending a request, staff confirmation, staff decline, expiry of an
+  unanswered request and expiry of a confirmed but unpaid order, each including the release of
+  capacity.
 - Custom Medusa modules and workflows MUST have integration tests using Medusa's testing
   tooling; the checkout-to-order flow MUST have an end-to-end test through the Store API
   (HTTP integration tests) against a seeded database, including rejection of orders that
@@ -177,6 +188,11 @@ itself.
   blocked dates, daily capacity limits, catering quantities (minimum quantity, quantity
   steps) and, when delivery is offered, delivery zones and costs. The backend MUST reject an order that
   violates any of them regardless of what the storefront sent or validated.
+- The backend is also the single source of truth for the state of on-request terms
+  (requested → confirmed → paid, or declined / expired): it MUST decide which windows require
+  confirmation, accept a request only for such a window, hold its capacity, enforce the
+  response and payment deadlines, and refuse payment for a request that was not confirmed or
+  whose payment time has passed.
 - The storefront MAY validate the same rules for UX, but MUST NOT be the only place a rule is
   enforced, and MUST NOT hard-code rule values the backend can provide.
 - Every feature that adds or changes Store API behaviour (routes, request/response shapes,
@@ -280,4 +296,4 @@ contracts keep two repositories in sync.
   AGENTS.md MUST reference this constitution rather than restate it.
 - Compliance is reviewed at each Medusa upgrade and at least once per quarter.
 
-**Version**: 2.2.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-06
+**Version**: 2.3.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-14

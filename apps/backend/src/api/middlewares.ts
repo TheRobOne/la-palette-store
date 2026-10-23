@@ -7,10 +7,12 @@ import {
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import {
   AdminBlockDateBody,
+  AdminRequestsQuery,
   AdminRescheduleBody,
   AdminScheduleBody,
   DateRangeQuery,
   MethodQuery,
+  StoreSendRequestBody,
   StoreSlotsQuery,
 } from './validators/catering-scheduling'
 
@@ -42,6 +44,11 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformQuery(StoreSlotsQuery, {})],
     },
     {
+      method: ['POST'],
+      matcher: '/store/catering/requests',
+      middlewares: [validateAndTransformBody(StoreSendRequestBody)],
+    },
+    {
       method: ['GET'],
       matcher: '/admin/catering/schedule',
       middlewares: [validateAndTransformQuery(MethodQuery, {})],
@@ -68,6 +75,16 @@ export default defineMiddlewares({
       method: ['GET'],
       matcher: '/admin/catering/calendar',
       middlewares: [validateAndTransformQuery(DateRangeQuery, {})],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/requests',
+      middlewares: [validateAndTransformQuery(AdminRequestsQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/requests/:id/pickup-term',
+      middlewares: [validateAndTransformBody(AdminRescheduleBody)],
     },
     {
       method: ['POST'],

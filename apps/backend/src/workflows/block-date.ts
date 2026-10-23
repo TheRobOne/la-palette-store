@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { CATERING_MODULE } from "../modules/catering"
+import { CAPACITY_STATUSES } from "../modules/catering/models/booking"
 import type { FulfillmentMethod } from "../modules/catering/models/fulfillment-schedule"
 import type CateringModuleService from "../modules/catering/service"
 import { formatPlDate, isValidDate } from "../modules/catering/scheduling/time"
@@ -42,7 +43,7 @@ const blockDateStep = createStep(
       reason: input.reason?.trim() || null,
     })
     const bookings = await catering.listBookings(
-      { date: input.date, status: "active" },
+      { date: input.date, status: CAPACITY_STATUSES },
       { select: ["id"] }
     )
 

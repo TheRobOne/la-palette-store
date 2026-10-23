@@ -3,11 +3,14 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 import { findOrderBooking } from "../lib/order-booking"
 import { withCapacityLock } from "../lib/pickup-booking"
 import { CATERING_MODULE } from "../modules/catering"
+import { CAPACITY_STATUSES, type RequestSnapshot } from "../modules/catering/models/booking"
 import type CateringModuleService from "../modules/catering/service"
 import { CATERING_TERM_METADATA_KEY } from "../modules/catering/scheduling/term"
 
+/** Either an order (004) or a not-yet-paid request by its booking id (spec 005). */
 export type RescheduleOrderPickupInput = {
-  order_id: string
+  order_id?: string
+  booking_id?: string
   date: string
   start: string
   end: string
@@ -25,6 +28,9 @@ type Previous = {
     rescheduled_at: Date | null
   }
   orderMetadata: Record<string, unknown> | null
+  // spec 005: a request (no order yet) keeps its term on the cart and snapshot
+  cart?: { id: string; metadata: Record<string, unknown> | null }
+  requestSnapshot?: unknown
 }
 
 /**
@@ -40,14 +46,32 @@ const rescheduleOrderPickupStep = createStep(
     const catering: CateringModuleService = container.resolve(CATERING_MODULE)
     const orderModule = container.resolve(Modules.ORDER)
 
-    const booking = await findOrderBooking(container, input.order_id)
-    if (!booking || booking.status !== "active") {
+    const booking = input.order_id
+      ? await findOrderBooking(container, input.order_id)
+      : input.booking_id
+        ? (await catering.listBookings({ id: input.booking_id }))[0] ?? null
+        : null
+    if (!booking || !CAPACITY_STATUSES.includes(booking.status)) {
       throw new MedusaError(
         MedusaError.Types.NOT_FOUND,
-        `Order ${input.order_id} has no active pickup booking`
+        `No active pickup booking for ${input.order_id ?? input.booking_id}`
       )
     }
-    const order = await orderModule.retrieveOrder(input.order_id, { select: ["id", "metadata"] })
+    const orderId = input.order_id ?? booking.order_id ?? null
+    const term = {
+      method: booking.fulfillment_method,
+      date: input.date,
+      start: input.start,
+      end: input.end,
+    }
+
+    const order = orderId
+      ? await orderModule.retrieveOrder(orderId, { select: ["id", "metadata"] })
+      : null
+    const cartModule = container.resolve(Modules.CART)
+    const cart = orderId
+      ? null
+      : await cartModule.retrieveCart(booking.cart_id, { select: ["id", "metadata"] })
 
     const previous: Previous = {
       booking: {
@@ -60,13 +84,20 @@ const rescheduleOrderPickupStep = createStep(
         previous_end_time: booking.previous_end_time,
         rescheduled_at: booking.rescheduled_at,
       },
-      orderMetadata: order.metadata ?? null,
+      orderMetadata: order?.metadata ?? null,
+      ...(cart
+        ? {
+            cart: { id: cart.id, metadata: cart.metadata ?? null },
+            requestSnapshot: booking.request_snapshot,
+          }
+        : {}),
     }
 
     const updated = await withCapacityLock(container, input.date, async () => {
+      const snapshot = booking.request_snapshot as RequestSnapshot | null
       const result = await catering.updateBookings({
         id: booking.id,
-        order_id: input.order_id,
+        ...(orderId ? { order_id: orderId } : {}),
         date: input.date,
         start_time: input.start,
         end_time: input.end,
@@ -74,18 +105,18 @@ const rescheduleOrderPickupStep = createStep(
         previous_start_time: booking.start_time,
         previous_end_time: booking.end_time,
         rescheduled_at: new Date(),
+        // the request stays payable: its snapshot follows the new term
+        ...(snapshot ? { request_snapshot: { ...snapshot, term } } : {}),
       })
-      await orderModule.updateOrders(input.order_id, {
-        metadata: {
-          ...(order.metadata ?? {}),
-          [CATERING_TERM_METADATA_KEY]: {
-            method: booking.fulfillment_method,
-            date: input.date,
-            start: input.start,
-            end: input.end,
-          },
-        },
-      })
+      if (order) {
+        await orderModule.updateOrders(order.id, {
+          metadata: { ...(order.metadata ?? {}), [CATERING_TERM_METADATA_KEY]: term },
+        })
+      } else if (cart) {
+        await cartModule.updateCarts(cart.id, {
+          metadata: { ...(cart.metadata ?? {}), [CATERING_TERM_METADATA_KEY]: term },
+        })
+      }
       return result
     })
 
@@ -96,7 +127,16 @@ const rescheduleOrderPickupStep = createStep(
       return
     }
     const catering: CateringModuleService = container.resolve(CATERING_MODULE)
-    await catering.updateBookings(previous.booking)
+    await catering.updateBookings({
+      ...previous.booking,
+      ...(previous.cart ? { request_snapshot: previous.requestSnapshot as Record<string, unknown> } : {}),
+    })
+    if (previous.cart) {
+      await container
+        .resolve(Modules.CART)
+        .updateCarts(previous.cart.id, { metadata: previous.cart.metadata ?? {} })
+      return
+    }
     const orderModule = container.resolve(Modules.ORDER)
     const orderId = (await catering.retrieveBooking(previous.booking.id)).order_id
     if (orderId) {

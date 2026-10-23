@@ -27,12 +27,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # pnpm must be on PATH before setup-node: v5 caches the package manager
+      # from `packageManager` and fails with "Unable to locate executable
+      # file: pnpm" otherwise (every run from 2026-09-28 to 2026-10-12).
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

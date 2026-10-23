@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { CATERING_MODULE } from ".."
+import { CAPACITY_STATUSES } from "../models/booking"
 import type { FulfillmentMethod } from "../models/fulfillment-schedule"
 import type CateringModuleService from "../service"
 import type { ScheduleInputs } from "./availability"
@@ -34,7 +35,7 @@ export async function loadSchedulingContext(
     catering.listWindowRules({ fulfillment_method: method }),
     catering.listBlockedDates({ date: { $gte: from, $lte: to } }),
     catering.listBookings(
-      { status: "active", date: { $gte: from, $lte: to } },
+      { status: CAPACITY_STATUSES, date: { $gte: from, $lte: to } },
       { select: ["id", "date"] }
     ),
   ])
@@ -55,12 +56,14 @@ export async function loadSchedulingContext(
           is_enabled: schedule.is_enabled,
           lead_time_hours: schedule.lead_time_hours,
           booking_horizon_days: schedule.booking_horizon_days,
+          request_lead_time_hours: schedule.request_lead_time_hours,
         }
       : null,
     windows: windows.map((w) => ({
       weekday: w.weekday,
       start_time: w.start_time,
       end_time: w.end_time,
+      requires_confirmation: w.requires_confirmation,
     })),
     blockedDates: blockedDates.map((b) => ({
       date: b.date,

@@ -56,8 +56,52 @@ export type Schedule = {
   lead_time_hours: number
   booking_horizon_days: number
   daily_capacity: number
-  windows: { weekday: number; start: string; end: string }[]
+  // on-request terms (spec 005)
+  request_lead_time_hours: number
+  request_response_hours: number
+  request_payment_hours: number
+  windows: { weekday: number; start: string; end: string; requires_confirmation?: boolean }[]
 }
+
+/** GET /admin/catering/requests item (specs/005-on-request-terms/contracts/admin-api.md). */
+export type PickupRequest = {
+  id: string
+  cart_id: string
+  status: "requested" | "confirmed" | "active" | "declined" | "expired" | "canceled"
+  term: { method: string; date: string; start: string; end: string }
+  response_deadline: string | null
+  payment_deadline: string | null
+  email: string | null
+  item_total: number | null
+  items: { title: string | null; quantity: number }[]
+  decided_at: string | null
+  order_id: string | null
+}
+
+export const REQUEST_STATUS_LABELS: Record<PickupRequest["status"], string> = {
+  requested: "Czeka na decyzję",
+  confirmed: "Potwierdzone – czeka na płatność",
+  active: "Opłacone",
+  declined: "Odrzucone",
+  expired: "Wygasło (brak odpowiedzi)",
+  canceled: "Anulowane (brak płatności)",
+}
+
+/** "za 5 godz." / "po terminie" — time left until an ISO deadline. */
+export function timeLeft(deadline: string | null): string {
+  if (!deadline) {
+    return ""
+  }
+  const ms = new Date(deadline).getTime() - Date.now()
+  if (ms <= 0) {
+    return "po terminie"
+  }
+  const hours = Math.floor(ms / 3_600_000)
+  return hours >= 1 ? `za ${hours} godz.` : `za ${Math.max(1, Math.round(ms / 60_000))} min`
+}
+
+export const formatDateTime = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }) : "—"
 
 export type BlockedDateDto = {
   id: string
