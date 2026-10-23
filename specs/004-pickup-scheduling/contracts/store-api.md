@@ -47,6 +47,8 @@ Not breaking: adds a route and a new completion rule.
   have `windows: []`.
 - `400 invalid_data` for a missing/invalid date or a range over 62 days.
 - Availability changes with every order: fetch **uncached** (`cache: "no-store"`).
+- Since spec 005 every window also has `requires_confirmation` (on-request window → request
+  path, see [005 store-api.md](../../005-on-request-terms/contracts/store-api.md)).
 
 ## 2. Attach the chosen term to the cart
 

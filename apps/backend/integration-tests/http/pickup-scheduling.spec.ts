@@ -296,7 +296,10 @@ medusaIntegrationTestRunner({
           { headers }
         )
         expect(saved.data.schedule.daily_capacity).toEqual(3)
-        expect(saved.data.schedule.windows).toEqual([{ weekday: 6, start: "09:00", end: "10:30" }])
+        // spec 005 adds requires_confirmation (default false when omitted)
+        expect(saved.data.schedule.windows).toEqual([
+          { weekday: 6, start: "09:00", end: "10:30", requires_confirmation: false },
+        ])
 
         const overlapping = await api
           .post(

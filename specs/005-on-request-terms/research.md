@@ -104,3 +104,12 @@ Medusa findings verified against the installed **2.21.1** source in `node_module
 - Status page only in this feature (FR-010); the e-mail feature will subscribe to new events
   emitted here: `catering.request.created|confirmed|declined|expired|canceled` (emitted via
   the event bus in the workflows/job, unused for now).
+
+## R-10 Verification (T001)
+
+- Scheduled jobs: `medusa/dist/loaders/index.js` loads `src/jobs` when `workerMode` is
+  `worker` or `shared` (lines 29–30); dev/staging use `shared`. A job needs
+  `config.name` and `config.schedule` (`framework/dist/jobs/job-loader.js` 35–41).
+- Cart totals outside a workflow: `completeCartWorkflow` reads `item_total` etc. through
+  `useQueryGraphStep`, i.e. the same `query.graph` API a route uses; the request route reads
+  the cart the same way (confirmed empirically by the minimum-order test in T012).

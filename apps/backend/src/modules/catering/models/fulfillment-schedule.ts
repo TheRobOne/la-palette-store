@@ -19,6 +19,13 @@ const FulfillmentSchedule = model.define("fulfillment_schedule", {
   lead_time_hours: model.number().default(48),
   // 1–365; default 60; last offered date = today + horizon
   booking_horizon_days: model.number().default(60),
+  // on-request windows (specs/005-on-request-terms)
+  // ≥ 0; default 72; replaces lead_time_hours for on-request windows
+  request_lead_time_hours: model.number().default(72),
+  // 1–168; default 24 — staff must confirm/decline within this time
+  request_response_hours: model.number().default(24),
+  // 1–168; default 24 — customer must pay within this time after confirmation
+  request_payment_hours: model.number().default(24),
 })
 
 export default FulfillmentSchedule

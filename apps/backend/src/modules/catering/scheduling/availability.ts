@@ -30,9 +30,16 @@ export type ScheduleInputs = {
     is_enabled: boolean
     lead_time_hours: number
     booking_horizon_days: number
+    /** lead time for on-request windows (spec 005); defaults to lead_time_hours */
+    request_lead_time_hours?: number
   } | null
   /** window rules of `method` */
-  windows: { weekday: number; start_time: string; end_time: string }[]
+  windows: {
+    weekday: number
+    start_time: string
+    end_time: string
+    requires_confirmation?: boolean
+  }[]
   /** blocked dates for `method` or for all methods (`fulfillment_method: null`) */
   blockedDates: { date: string; fulfillment_method: string | null }[]
   /** active bookings per date, all methods */
@@ -40,7 +47,13 @@ export type ScheduleInputs = {
   dailyCapacity: number
 }
 
-export type WindowAvailability = { start: string; end: string; available: boolean }
+export type WindowAvailability = {
+  start: string
+  end: string
+  available: boolean
+  /** true = on-request window: request without payment, staff confirm (spec 005) */
+  requires_confirmation: boolean
+}
 
 export type DayAvailability = {
   date: string
@@ -70,8 +83,23 @@ function isFull(date: string, inputs: ScheduleInputs) {
   return (inputs.bookingsPerDate[date] ?? 0) >= inputs.dailyCapacity
 }
 
-function meetsLeadTime(date: string, start: string, inputs: ScheduleInputs) {
-  const leadMs = (inputs.schedule?.lead_time_hours ?? 0) * 3_600_000
+function leadTimeHours(inputs: ScheduleInputs, requiresConfirmation: boolean) {
+  const schedule = inputs.schedule
+  if (!schedule) {
+    return 0
+  }
+  return requiresConfirmation
+    ? (schedule.request_lead_time_hours ?? schedule.lead_time_hours)
+    : schedule.lead_time_hours
+}
+
+function meetsLeadTime(
+  date: string,
+  start: string,
+  inputs: ScheduleInputs,
+  requiresConfirmation = false
+) {
+  const leadMs = leadTimeHours(inputs, requiresConfirmation) * 3_600_000
   return (
     warsawWallClockToInstant(date, start).getTime() - inputs.now.getTime() >= leadMs
   )
@@ -122,11 +150,16 @@ export function computeAvailability(
     }
 
     const full = isFull(date, inputs)
-    const windows = windowsFor(date, inputs).map((w) => ({
-      start: w.start_time,
-      end: w.end_time,
-      available: !full && meetsLeadTime(date, w.start_time, inputs),
-    }))
+    const windows = windowsFor(date, inputs).map((w) => {
+      const requiresConfirmation = !!w.requires_confirmation
+      return {
+        start: w.start_time,
+        end: w.end_time,
+        available:
+          !full && meetsLeadTime(date, w.start_time, inputs, requiresConfirmation),
+        requires_confirmation: requiresConfirmation,
+      }
+    })
     const available = windows.some((w) => w.available)
 
     days.push({
@@ -138,6 +171,18 @@ export function computeAvailability(
   }
 
   return days
+}
+
+/** The window rule matching a term exactly (date's weekday, start and end), if any. */
+export function findWindow(term: Term, inputs: ScheduleInputs) {
+  return windowsFor(term.date, inputs).find(
+    (w) => w.start_time === term.start && w.end_time === term.end
+  )
+}
+
+/** Whether the term's window is "on request" (spec 005 FR-003a); false if no rule matches. */
+export function termRequiresConfirmation(term: Term, inputs: ScheduleInputs): boolean {
+  return !!findWindow(term, inputs)?.requires_confirmation
 }
 
 /**
@@ -159,16 +204,14 @@ export function checkTerm(term: Term, inputs: ScheduleInputs): UnavailableReason
   if (isBlocked(term.date, inputs)) {
     reasons.add("blocked")
   }
-  const matchesWindow = windowsFor(term.date, inputs).some(
-    (w) => w.start_time === term.start && w.end_time === term.end
-  )
-  if (!matchesWindow) {
+  const matched = findWindow(term, inputs)
+  if (!matched) {
     reasons.add("closed")
   }
   if (isFull(term.date, inputs)) {
     reasons.add("full")
   }
-  if (!meetsLeadTime(term.date, term.start, inputs)) {
+  if (!meetsLeadTime(term.date, term.start, inputs, !!matched?.requires_confirmation)) {
     reasons.add("lead_time")
   }
 

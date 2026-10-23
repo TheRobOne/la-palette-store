@@ -52,3 +52,27 @@ describe("assertValidSchedule (unit, no database)", () => {
     ).toThrow(/nachodzą na siebie/)
   })
 })
+
+describe("assertValidSchedule — on-request fields (spec 005)", () => {
+  it("accepts valid values and omitted fields", () => {
+    expect(() =>
+      assertValidSchedule({
+        ...valid,
+        request_lead_time_hours: 72,
+        request_response_hours: 24,
+        request_payment_hours: 168,
+        windows: [{ weekday: 1, start: "10:00", end: "11:00", requires_confirmation: true }],
+      })
+    ).not.toThrow()
+  })
+
+  it.each([
+    [{ request_lead_time_hours: -1 }, /Wyprzedzenie zapytań/],
+    [{ request_response_hours: 0 }, /Czas na odpowiedź musi wynosić od 1 do 168/],
+    [{ request_response_hours: 169 }, /Czas na odpowiedź/],
+    [{ request_payment_hours: 0 }, /Czas na płatność/],
+    [{ request_payment_hours: 1.5 }, /Czas na płatność/],
+  ])("rejects %j", (patch, message) => {
+    expect(() => assertValidSchedule({ ...valid, ...patch })).toThrow(message)
+  })
+})

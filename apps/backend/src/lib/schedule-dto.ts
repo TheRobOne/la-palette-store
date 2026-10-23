@@ -16,10 +16,18 @@ export async function loadScheduleDto(container: MedusaContainer, method: Fulfil
     method,
     is_enabled: schedule?.is_enabled ?? false,
     lead_time_hours: schedule?.lead_time_hours ?? 48,
+    request_lead_time_hours: schedule?.request_lead_time_hours ?? 72,
+    request_response_hours: schedule?.request_response_hours ?? 24,
+    request_payment_hours: schedule?.request_payment_hours ?? 24,
     booking_horizon_days: schedule?.booking_horizon_days ?? 60,
     daily_capacity: settings?.daily_capacity ?? 0,
     windows: windows
-      .map((w) => ({ weekday: w.weekday, start: w.start_time, end: w.end_time }))
+      .map((w) => ({
+        weekday: w.weekday,
+        start: w.start_time,
+        end: w.end_time,
+        requires_confirmation: w.requires_confirmation,
+      }))
       .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
   }
 }

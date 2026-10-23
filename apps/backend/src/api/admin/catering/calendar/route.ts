@@ -1,6 +1,7 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../../../../modules/catering"
+import { CAPACITY_STATUSES } from "../../../../modules/catering/models/booking"
 import type CateringModuleService from "../../../../modules/catering/service"
 import { addDays, isoWeekday } from "../../../../modules/catering/scheduling/time"
 import type { DateRangeQueryType } from "../../../validators/catering-scheduling"
@@ -9,6 +10,12 @@ type OrderSummary = {
   order_id: string | null
   display_id: number | null
   email: string | null
+  // spec 005: requested / confirmed requests appear next to placed orders
+  booking_status: string
+  request_id?: string
+  cart_id?: string
+  response_deadline?: string | null
+  payment_deadline?: string | null
   status: string | null
 }
 
@@ -30,7 +37,7 @@ export async function GET(
     catering.listSchedulingSettings({}, { take: 1 }),
     catering.listWindowRules({ fulfillment_method: "pickup" }),
     catering.listBlockedDates({ date: { $gte: from, $lte: to } }),
-    catering.listBookings({ status: "active", date: { $gte: from, $lte: to } }),
+    catering.listBookings({ status: CAPACITY_STATUSES, date: { $gte: from, $lte: to } }),
   ])
 
   const orderIds = bookings.map((b) => b.order_id).filter((id): id is string => !!id)
@@ -42,6 +49,15 @@ export async function GET(
       })
     : { data: [] }
   const orderById = new Map(orders.map((o) => [o.id as string, o]))
+
+  // requests have no order yet: their contact e-mail comes from the cart
+  const requestCartIds = bookings.filter((b) => !b.order_id).map((b) => b.cart_id)
+  const { data: carts } = requestCartIds.length
+    ? await query.graph({ entity: "cart", fields: ["id", "email"], filters: { id: requestCartIds } })
+    : { data: [] }
+  const cartEmail = new Map(carts.map((c) => [c.id as string, (c.email as string | null) ?? null]))
+  const iso = (value: Date | string | null | undefined) =>
+    value ? new Date(value).toISOString() : null
 
   const days = []
   for (let date = from; date <= to; date = addDays(date, 1)) {
@@ -63,8 +79,17 @@ export async function GET(
       slot(b.start_time, b.end_time).orders.push({
         order_id: b.order_id ?? null,
         display_id: (order?.display_id as number | undefined) ?? null,
-        email: (order?.email as string | undefined) ?? null,
+        email: (order?.email as string | undefined) ?? cartEmail.get(b.cart_id) ?? null,
         status: (order?.status as string | undefined) ?? null,
+        booking_status: b.status,
+        ...(b.requires_confirmation
+          ? {
+              request_id: b.id,
+              cart_id: b.cart_id,
+              response_deadline: iso(b.response_deadline),
+              payment_deadline: iso(b.payment_deadline),
+            }
+          : {}),
       })
     }
 

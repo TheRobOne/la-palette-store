@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import {
   Button,
+  Checkbox,
   Container,
   Heading,
   IconButton,
@@ -169,13 +170,66 @@ const PickupSchedulePage = () => {
           />
         </div>
 
+        <div className="flex flex-col gap-y-2 px-6 py-4">
+          <Heading level="h2">Terminy na zapytanie</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Okna oznaczone „na zapytanie” klient może wybrać tylko wysyłając zapytanie; płaci po
+            potwierdzeniu przez kuchnię. Bez odpowiedzi albo bez płatności w poniższym czasie
+            zapytanie wygasa i zwalnia miejsce.
+          </Text>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <NumberField
+              id="request-lead-time"
+              label="Wyprzedzenie zapytań (godz.)"
+              value={schedule.request_lead_time_hours}
+              onChange={(request_lead_time_hours) => update({ request_lead_time_hours })}
+            />
+            <NumberField
+              id="request-response"
+              label="Czas na odpowiedź (godz.)"
+              value={schedule.request_response_hours}
+              onChange={(request_response_hours) => update({ request_response_hours })}
+            />
+            <NumberField
+              id="request-payment"
+              label="Czas na płatność (godz.)"
+              value={schedule.request_payment_hours}
+              onChange={(request_payment_hours) => update({ request_payment_hours })}
+            />
+          </div>
+        </div>
+
         <div className="flex flex-col gap-y-4 px-6 py-4">
           <Heading level="h2">Okna odbioru</Heading>
           {WEEKDAYS.map((weekday) => (
             <div key={weekday.value} className="flex flex-col gap-y-2">
-              <Text size="small" weight="plus">
-                {weekday.label}
-              </Text>
+              <div className="flex items-center gap-x-3">
+                <Text size="small" weight="plus">
+                  {weekday.label}
+                </Text>
+                {schedule.windows.some((w) => w.weekday === weekday.value) && (
+                  <div className="flex items-center gap-x-1">
+                    <Checkbox
+                      id={`day-on-request-${weekday.value}`}
+                      checked={schedule.windows
+                        .filter((w) => w.weekday === weekday.value)
+                        .every((w) => w.requires_confirmation)}
+                      onCheckedChange={(checked) =>
+                        update({
+                          windows: schedule.windows.map((w) =>
+                            w.weekday === weekday.value
+                              ? { ...w, requires_confirmation: checked === true }
+                              : w
+                          ),
+                        })
+                      }
+                    />
+                    <Label htmlFor={`day-on-request-${weekday.value}`} size="small">
+                      cały dzień na zapytanie
+                    </Label>
+                  </div>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {schedule.windows.map((w, index) =>
                   w.weekday !== weekday.value ? null : (
@@ -194,6 +248,14 @@ const PickupSchedulePage = () => {
                         value={w.end}
                         onChange={(e) => setWindow(index, { end: e.target.value })}
                         aria-label={`${weekday.label} do`}
+                      />
+                      <Checkbox
+                        checked={!!w.requires_confirmation}
+                        onCheckedChange={(checked) =>
+                          setWindow(index, { requires_confirmation: checked === true })
+                        }
+                        aria-label={`${weekday.label} ${w.start}–${w.end} na zapytanie`}
+                        title="Na zapytanie"
                       />
                       <IconButton
                         size="small"
