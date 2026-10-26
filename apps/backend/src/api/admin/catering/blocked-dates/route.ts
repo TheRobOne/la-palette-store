@@ -7,11 +7,18 @@ import type {
   DateRangeQueryType,
 } from "../../../validators/catering-scheduling"
 
-const toDto = (b: { id: string; date: string; fulfillment_method: string | null; reason: string | null }) => ({
+const toDto = (b: {
+  id: string
+  date: string
+  fulfillment_method: string | null
+  reason: string | null
+  period_id: string | null
+}) => ({
   id: b.id,
   date: b.date,
   method: b.fulfillment_method,
   reason: b.reason,
+  period_id: b.period_id,
 })
 
 /** `GET /admin/catering/blocked-dates?from&to` */
@@ -28,17 +35,30 @@ export async function GET(
   res.json({ blocked_dates: blocked.map(toDto) })
 }
 
-/** `POST /admin/catering/blocked-dates` → `{ blocked_date, existing_orders }` */
+/**
+ * `POST /admin/catering/blocked-dates` `{ date }` or `{ from, to }` →
+ * `{ blocked_date, blocked_dates, period_id, skipped_dates, existing_orders }`
+ * (`blocked_date` = the first created day, kept for 004 clients).
+ */
 export async function POST(
   req: AuthenticatedMedusaRequest<AdminBlockDateBodyType>,
   res: MedusaResponse
 ) {
+  const { date, from, to, method, reason } = req.validatedBody
   const { result } = await blockDateWorkflow(req.scope).run({
     input: {
-      date: req.validatedBody.date,
-      method: req.validatedBody.method ?? null,
-      reason: req.validatedBody.reason ?? null,
+      from: (date ?? from)!,
+      to: (date ?? to)!,
+      method: method ?? null,
+      reason: reason ?? null,
     },
   })
-  res.json({ blocked_date: toDto(result.blocked_date), existing_orders: result.existing_orders })
+  const blocked = result.blocked_dates.map(toDto)
+  res.json({
+    blocked_date: blocked[0],
+    blocked_dates: blocked,
+    period_id: result.period_id,
+    skipped_dates: result.skipped_dates,
+    existing_orders: result.existing_orders,
+  })
 }

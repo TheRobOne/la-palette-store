@@ -25,12 +25,22 @@ kitchen-wide (shared by all methods).
 
 ## Blocked dates
 
-- `GET /admin/catering/blocked-dates?from&to` (max 366 days) → `{ blocked_dates: [{ id, date, method, reason }] }`
-  (`method: null` = all methods)
-- `POST /admin/catering/blocked-dates` `{ date, method?: "pickup" | null, reason? }` →
-  `{ blocked_date, existing_orders: <number of active bookings on that date> }` — the UI shows
-  the warning when `existing_orders > 0`; orders are not changed.
-- `DELETE /admin/catering/blocked-dates/:id` → `{ id, deleted: true }`
+- `GET /admin/catering/blocked-dates?from&to` (max 366 days) →
+  `{ blocked_dates: [{ id, date, method, reason, period_id }] }` (`method: null` = all methods;
+  `period_id: null` = a single day)
+- `POST /admin/catering/blocked-dates` `{ date, method?: "pickup" | null, reason? }` (one day) or
+  `{ from, to, method?, reason? }` (a period, inclusive, max 366 days; added 2026-10-26) →
+  `{ blocked_date, blocked_dates, period_id, skipped_dates, existing_orders }`:
+  - a period is stored as **one row per day** sharing `period_id` (`blkp_…`), so availability
+    still checks single days; `blocked_date` is the first created day (kept for 004 clients);
+  - days already blocked for the same method are skipped and listed in `skipped_dates`; an
+    already-blocked single day, or a period with every day blocked, answers `422 duplicate_error`;
+  - `existing_orders`: bookings (requested, confirmed, active) in the range — the UI warns when
+    `> 0`; orders are not changed.
+- `DELETE /admin/catering/blocked-dates/:id` → `{ id, deleted: true }` (one day, also one day of a
+  period)
+- `DELETE /admin/catering/blocked-periods/:period_id` → `{ period_id, deleted: <days> }` (every
+  remaining day of the period)
 
 ## Calendar — `GET /admin/catering/calendar?from&to` (max 62 days)
 

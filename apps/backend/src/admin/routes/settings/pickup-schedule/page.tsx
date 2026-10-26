@@ -33,7 +33,9 @@ const PickupSchedulePage = () => {
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [blocked, setBlocked] = useState<BlockedDateDto[]>([])
   const [saving, setSaving] = useState(false)
-  const [newBlock, setNewBlock] = useState({ date: "", reason: "", scope: "all" })
+  // `to` empty = one day; set = a period (e.g. all of May)
+  const emptyBlock = { from: "", to: "", reason: "", scope: "all" }
+  const [newBlock, setNewBlock] = useState(emptyBlock)
 
   const load = useCallback(async () => {
     try {
@@ -88,41 +90,54 @@ const PickupSchedulePage = () => {
     }
   }
 
+  const isPeriod = !!newBlock.to && newBlock.to !== newBlock.from
+
   const addBlock = async () => {
+    const label = isPeriod
+      ? `${formatPlDate(newBlock.from)}–${formatPlDate(newBlock.to)}`
+      : formatPlDate(newBlock.from)
     try {
-      const { existing_orders } = await adminFetch<{
-        blocked_date: BlockedDateDto
+      const { blocked_dates, skipped_dates, existing_orders } = await adminFetch<{
+        blocked_dates: BlockedDateDto[]
+        skipped_dates: string[]
         existing_orders: number
       }>("/admin/catering/blocked-dates", {
         method: "POST",
         body: {
-          date: newBlock.date,
+          ...(isPeriod ? { from: newBlock.from, to: newBlock.to } : { date: newBlock.from }),
           method: newBlock.scope === "pickup" ? "pickup" : null,
           reason: newBlock.reason || null,
         },
       })
-      if (existing_orders > 0) {
-        toast.warning(`Zablokowano ${formatPlDate(newBlock.date)}`, {
-          description: `Na ten dzień są już ${existing_orders} zamówienia — pozostają bez zmian.`,
-        })
-      } else {
-        toast.success(`Zablokowano ${formatPlDate(newBlock.date)}`)
-      }
-      setNewBlock({ date: "", reason: "", scope: "all" })
+      const notes = [
+        isPeriod ? `Zablokowano ${blocked_dates.length} dni.` : null,
+        skipped_dates.length ? `${skipped_dates.length} dni było już zablokowanych.` : null,
+        existing_orders > 0
+          ? `W tym okresie są już zamówienia (${existing_orders}) — pozostają bez zmian.`
+          : null,
+      ].filter(Boolean)
+      const show = existing_orders > 0 ? toast.warning : toast.success
+      show(`Zablokowano ${label}`, notes.length ? { description: notes.join(" ") } : undefined)
+      setNewBlock(emptyBlock)
       load()
     } catch (e) {
-      toast.error("Nie udało się zablokować dnia", {
+      toast.error(isPeriod ? "Nie udało się zablokować okresu" : "Nie udało się zablokować dnia", {
         description: e instanceof AdminApiError ? e.message : String(e),
       })
     }
   }
 
-  const removeBlock = async (id: string) => {
+  const removeBlock = async (entry: BlockEntry) => {
     try {
-      await adminFetch(`/admin/catering/blocked-dates/${id}`, { method: "DELETE" })
-      setBlocked(blocked.filter((b) => b.id !== id))
+      if (entry.period_id) {
+        await adminFetch(`/admin/catering/blocked-periods/${entry.period_id}`, { method: "DELETE" })
+        setBlocked(blocked.filter((b) => b.period_id !== entry.period_id))
+      } else {
+        await adminFetch(`/admin/catering/blocked-dates/${entry.id}`, { method: "DELETE" })
+        setBlocked(blocked.filter((b) => b.id !== entry.id))
+      }
     } catch (e) {
-      toast.error("Nie udało się odblokować dnia", { description: String(e) })
+      toast.error("Nie udało się odblokować", { description: String(e) })
     }
   }
 
@@ -294,22 +309,36 @@ const PickupSchedulePage = () => {
         <div className="px-6 py-4">
           <Heading level="h2">Zablokowane dni</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            W te dni klienci nie złożą zamówienia (np. wesela, święta, urlop). Powód widzi
-            tylko obsługa.
+            W te dni klienci nie złożą zamówienia (np. wesela, święta, urlop). Podaj datę
+            „Do”, żeby zablokować cały okres (np. cały maj). Powód widzi tylko obsługa.
+            Istniejące zamówienia zostają bez zmian.
           </Text>
         </div>
         <div className="flex flex-wrap items-end gap-3 px-6 py-4">
           <div className="flex flex-col gap-y-1">
-            <Label htmlFor="block-date" size="small">
-              Data
+            <Label htmlFor="block-from" size="small">
+              Od
             </Label>
             <Input
-              id="block-date"
+              id="block-from"
               type="date"
               size="small"
               min={todayIso()}
-              value={newBlock.date}
-              onChange={(e) => setNewBlock({ ...newBlock, date: e.target.value })}
+              value={newBlock.from}
+              onChange={(e) => setNewBlock({ ...newBlock, from: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-y-1">
+            <Label htmlFor="block-to" size="small">
+              Do (opcjonalnie, dla okresu)
+            </Label>
+            <Input
+              id="block-to"
+              type="date"
+              size="small"
+              min={newBlock.from || todayIso()}
+              value={newBlock.to}
+              onChange={(e) => setNewBlock({ ...newBlock, to: e.target.value })}
             />
           </div>
           <div className="flex flex-col gap-y-1">
@@ -340,8 +369,13 @@ const PickupSchedulePage = () => {
               </Select.Content>
             </Select>
           </div>
-          <Button size="small" variant="secondary" disabled={!newBlock.date} onClick={addBlock}>
-            Zablokuj dzień
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={!newBlock.from || (!!newBlock.to && newBlock.to < newBlock.from)}
+            onClick={addBlock}
+          >
+            {isPeriod ? "Zablokuj okres" : "Zablokuj dzień"}
           </Button>
         </div>
         <div className="flex flex-col px-6 py-4">
@@ -350,15 +384,17 @@ const PickupSchedulePage = () => {
               Brak zablokowanych dni.
             </Text>
           ) : (
-            blocked.map((b) => (
-              <div key={b.id} className="flex items-center justify-between py-1">
+            groupBlocks(blocked).map((b) => (
+              <div key={b.period_id ?? b.id} className="flex items-center justify-between py-1">
                 <Text size="small">
-                  {formatPlDate(b.date)}
+                  {b.period_id
+                    ? `${formatPlDate(b.from)}–${formatPlDate(b.to)} (${b.days} dni)`
+                    : formatPlDate(b.from)}
                   {b.reason ? ` — ${b.reason}` : ""}
                   {b.method ? " (tylko odbiory)" : ""}
                 </Text>
-                <Button size="small" variant="transparent" onClick={() => removeBlock(b.id)}>
-                  Odblokuj
+                <Button size="small" variant="transparent" onClick={() => removeBlock(b)}>
+                  {b.period_id ? "Odblokuj okres" : "Odblokuj"}
                 </Button>
               </div>
             ))
@@ -367,6 +403,40 @@ const PickupSchedulePage = () => {
       </Container>
     </div>
   )
+}
+
+type BlockEntry = {
+  id: string
+  period_id: string | null
+  from: string
+  to: string
+  days: number
+  reason: string | null
+  method: string | null
+}
+
+/** One entry per single day or per period (its days share `period_id`), by start date. */
+function groupBlocks(blocked: BlockedDateDto[]): BlockEntry[] {
+  const entries = new Map<string, BlockEntry>()
+  for (const b of [...blocked].sort((x, y) => x.date.localeCompare(y.date))) {
+    const key = b.period_id ?? b.id
+    const entry = entries.get(key)
+    if (entry) {
+      entry.to = b.date
+      entry.days += 1
+    } else {
+      entries.set(key, {
+        id: b.id,
+        period_id: b.period_id,
+        from: b.date,
+        to: b.date,
+        days: 1,
+        reason: b.reason,
+        method: b.method,
+      })
+    }
+  }
+  return [...entries.values()]
 }
 
 const NumberField = ({
