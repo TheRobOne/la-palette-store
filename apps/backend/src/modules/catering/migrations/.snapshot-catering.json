@@ -72,6 +72,22 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "period_id": {
+          "name": "period_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -132,6 +148,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_blocked_date_deleted_at\" ON \"blocked_date\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_blocked_date_period_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_blocked_date_period_id\" ON \"blocked_date\" (\"period_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_blocked_date_date_method_unique",

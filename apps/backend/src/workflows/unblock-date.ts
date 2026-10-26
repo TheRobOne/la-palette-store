@@ -27,3 +27,29 @@ export const unblockDateWorkflow = createWorkflow("unblock-date", (id: string) =
   const result = unblockDateStep(id)
   return new WorkflowResponse(result)
 })
+
+/** Removes every day of a blocked period (soft delete, restored on compensation). */
+const unblockPeriodStep = createStep(
+  "unblock-period",
+  async (periodId: string, { container }) => {
+    const catering: CateringModuleService = container.resolve(CATERING_MODULE)
+    const days = await catering.listBlockedDates({ period_id: periodId }, { select: ["id"] })
+    if (!days.length) {
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, `Blocked period ${periodId} not found`)
+    }
+    const ids = days.map((d) => d.id)
+    await catering.softDeleteBlockedDates(ids)
+    return new StepResponse({ period_id: periodId, deleted: ids.length }, ids)
+  },
+  async (ids, { container }) => {
+    if (ids?.length) {
+      const catering: CateringModuleService = container.resolve(CATERING_MODULE)
+      await catering.restoreBlockedDates(ids)
+    }
+  }
+)
+
+export const unblockPeriodWorkflow = createWorkflow("unblock-period", (periodId: string) => {
+  const result = unblockPeriodStep(periodId)
+  return new WorkflowResponse(result)
+})

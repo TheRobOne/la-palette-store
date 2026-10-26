@@ -71,11 +71,18 @@ export const AdminScheduleBody = z.object({
 })
 export type AdminScheduleBodyType = z.infer<typeof AdminScheduleBody>
 
-export const AdminBlockDateBody = z.object({
-  date: dateString,
-  method: z.enum(FULFILLMENT_METHODS).nullish(),
-  reason: z.string().max(200).nullish(),
-})
+/** One day (`date`) or a period (`from` + `to`, inclusive) — not both. */
+export const AdminBlockDateBody = z
+  .object({
+    date: dateString.optional(),
+    from: dateString.optional(),
+    to: dateString.optional(),
+    method: z.enum(FULFILLMENT_METHODS).nullish(),
+    reason: z.string().max(200).nullish(),
+  })
+  .refine(({ date, from, to }) => (date ? !from && !to : !!from && !!to), {
+    message: "Pass either `date` or both `from` and `to`",
+  })
 export type AdminBlockDateBodyType = z.infer<typeof AdminBlockDateBody>
 
 export const AdminRescheduleBody = z.object({

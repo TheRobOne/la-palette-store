@@ -108,6 +108,8 @@ export type BlockedDateDto = {
   date: string
   method: "pickup" | null
   reason: string | null
+  // days blocked together as a period share it; null = a single day
+  period_id: string | null
 }
 
 /** "2026-10-20" in local time — fine for the Admin, which runs in Poland. */

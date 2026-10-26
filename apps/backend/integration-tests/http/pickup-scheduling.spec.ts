@@ -356,6 +356,67 @@ medusaIntegrationTestRunner({
         await api.delete(`/admin/catering/blocked-dates/${data.blocked_date.id}`, { headers })
         expect((await getSlots(term.date, term.date))[0].available).toBe(true)
       })
+
+      it("blocks a period as one unit, skips already blocked days and unblocks it", async () => {
+        const headers = await adminHeaders()
+        const term = await firstAvailableTerm()
+        expect((await complete(await prepareCart(term))).data.type).toEqual("order")
+        const plusDays = (date: string, days: number) => {
+          const d = new Date(`${date}T12:00:00Z`)
+          d.setUTCDate(d.getUTCDate() + days)
+          return d.toISOString().slice(0, 10)
+        }
+        const from = term.date
+        const to = plusDays(from, 4)
+
+        // a day inside the period is already blocked on its own
+        const single = await api.post(
+          "/admin/catering/blocked-dates",
+          { date: plusDays(from, 2), method: null },
+          { headers }
+        )
+
+        const { data } = await api.post(
+          "/admin/catering/blocked-dates",
+          { from, to, method: null, reason: "Urlop" },
+          { headers }
+        )
+        expect(data.period_id).toMatch(/^blkp_/)
+        expect(data.blocked_dates).toHaveLength(4)
+        expect(data.skipped_dates).toEqual([plusDays(from, 2)])
+        expect(data.existing_orders).toEqual(1)
+        expect((await getSlots(from, to)).every((d) => d.reason === "blocked")).toBe(true)
+
+        const list = await api.get(`/admin/catering/blocked-dates?from=${from}&to=${to}`, { headers })
+        expect(
+          list.data.blocked_dates.filter((b: { period_id: string | null }) => b.period_id === data.period_id)
+        ).toHaveLength(4)
+
+        const again = await api
+          .post("/admin/catering/blocked-dates", { from, to, method: null }, { headers })
+          .catch((e: ErrorResponse) => e.response)
+        expect(again.status).toBeGreaterThanOrEqual(400)
+
+        for (const body of [
+          { date: from, from, to },
+          { from: to, to: from },
+          { from, to: plusDays(from, 366) },
+        ]) {
+          const bad = await api
+            .post("/admin/catering/blocked-dates", { ...body, method: null }, { headers })
+            .catch((e: ErrorResponse) => e.response)
+          expect(bad.status).toEqual(400)
+        }
+
+        const removed = await api.delete(`/admin/catering/blocked-periods/${data.period_id}`, { headers })
+        expect(removed.data).toEqual({ period_id: data.period_id, deleted: 4 })
+        // the single day blocked on its own stays blocked
+        const after = await getSlots(from, to)
+        expect(after.filter((d) => d.reason === "blocked").map((d) => d.date)).toEqual([
+          plusDays(from, 2),
+        ])
+        await api.delete(`/admin/catering/blocked-dates/${single.data.blocked_date.id}`, { headers })
+      })
     })
 
     describe("US4 — pickup calendar", () => {
