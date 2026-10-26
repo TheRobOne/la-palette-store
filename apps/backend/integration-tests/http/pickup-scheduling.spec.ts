@@ -385,7 +385,7 @@ medusaIntegrationTestRunner({
         expect(data.blocked_dates).toHaveLength(4)
         expect(data.skipped_dates).toEqual([plusDays(from, 2)])
         expect(data.existing_orders).toEqual(1)
-        expect((await getSlots(from, to)).every((d: { reason: string }) => d.reason === "blocked")).toBe(true)
+        expect((await getSlots(from, to)).every((d) => d.reason === "blocked")).toBe(true)
 
         const list = await api.get(`/admin/catering/blocked-dates?from=${from}&to=${to}`, { headers })
         expect(
@@ -412,7 +412,7 @@ medusaIntegrationTestRunner({
         expect(removed.data).toEqual({ period_id: data.period_id, deleted: 4 })
         // the single day blocked on its own stays blocked
         const after = await getSlots(from, to)
-        expect(after.filter((d: { reason: string }) => d.reason === "blocked").map((d: { date: string }) => d.date)).toEqual([
+        expect(after.filter((d) => d.reason === "blocked").map((d) => d.date)).toEqual([
           plusDays(from, 2),
         ])
         await api.delete(`/admin/catering/blocked-dates/${single.data.blocked_date.id}`, { headers })
