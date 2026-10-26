@@ -10,6 +10,7 @@ import {
   AdminRequestsQuery,
   AdminRescheduleBody,
   AdminScheduleBody,
+  BlockedDatesQuery,
   DateRangeQuery,
   MethodQuery,
   StoreSendRequestBody,
@@ -64,7 +65,7 @@ export default defineMiddlewares({
     {
       method: ['GET'],
       matcher: '/admin/catering/blocked-dates',
-      middlewares: [validateAndTransformQuery(DateRangeQuery, {})],
+      middlewares: [validateAndTransformQuery(BlockedDatesQuery, {})],
     },
     {
       method: ['POST'],

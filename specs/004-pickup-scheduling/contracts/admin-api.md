@@ -25,7 +25,7 @@ kitchen-wide (shared by all methods).
 
 ## Blocked dates
 
-- `GET /admin/catering/blocked-dates?from&to` → `{ blocked_dates: [{ id, date, method, reason }] }`
+- `GET /admin/catering/blocked-dates?from&to` (max 366 days) → `{ blocked_dates: [{ id, date, method, reason }] }`
   (`method: null` = all methods)
 - `POST /admin/catering/blocked-dates` `{ date, method?: "pickup" | null, reason? }` →
   `{ blocked_date, existing_orders: <number of active bookings on that date> }` — the UI shows
