@@ -88,6 +88,9 @@ Staging `backend`:
 - Variables are set in Railway (names: `APP_ENV`, `DATABASE_URL`, `MEDUSA_BACKEND_URL`, CORS,
   secrets, `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `MEDUSA_WORKER_MODE`, `DISABLE_MEDUSA_ADMIN`,
   `ALLOW_INDEXING`, `CATERING_REVALIDATE_URL`/`_SECRET`).
+- E-mails (spec 006) need `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `STOREFRONT_URL` and
+  `NOTIFICATION_ALLOWLIST` (team addresses — staging never e-mails real customers); without
+  `RESEND_API_KEY` e-mails are only logged. Staff address: Admin → Settings → Store.
 - Leftover: an unattached volume `postgres-lapalette-volume` (5 GB) in staging, from the
   first staging database; safe to delete in the dashboard once confirmed unused.
 

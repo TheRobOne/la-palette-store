@@ -1,0 +1,67 @@
+/**
+ * Template data stored on each notification (`notification.data`) and
+ * rendered by the provider. Plain JSON — retries render the same data again.
+ */
+
+export type EmailTerm = { date: string; start: string; end: string }
+
+export type EmailItem = {
+  title: string
+  variant_title: string | null
+  quantity: number
+  /** gross line total, PLN */
+  total: number
+}
+
+export type EmailAddress = {
+  address_1: string
+  postal_code: string
+  city: string
+  phone: string | null
+}
+
+export type EmailInvoice = {
+  company: string
+  nip: string
+  address: string
+}
+
+export type EmailContact = {
+  name: string | null
+  email: string | null
+  phone: string | null
+}
+
+/** Shared by order and request e-mails. */
+export type EmailOrderData = {
+  term: EmailTerm
+  items: EmailItem[]
+  /** gross item total, PLN */
+  total: number
+  pickup_address: EmailAddress
+  contact: EmailContact
+  invoice: EmailInvoice | null
+  notes: string | null
+  links: {
+    terms: string
+    shop: string
+    /** customer status / payment page of a request */
+    request_status?: string
+    /** staff link to the order or the requests page in the Admin */
+    admin: string
+  }
+}
+
+export type OrderEmailData = EmailOrderData & {
+  order_id: string
+  display_id: number
+}
+
+export type RequestEmailData = EmailOrderData & {
+  request_id: string
+  cart_id: string
+  response_deadline: string | null
+  payment_deadline: string | null
+}
+
+export type RenderedEmail = { subject: string; html: string; text: string }

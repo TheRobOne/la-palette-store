@@ -1,4 +1,5 @@
 import { loadEnv, defineConfig, MedusaError } from '@medusajs/framework/utils'
+import { emailOptionsFromEnv } from './src/modules/resend/options'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -61,6 +62,21 @@ module.exports = defineConfig({
   modules: [
     {
       resolve: './src/modules/catering',
+    },
+    {
+      // Transactional e-mails (specs/006-transactional-emails): Resend for the
+      // `email` channel; without RESEND_API_KEY e-mails are only logged, and
+      // outside production only NOTIFICATION_ALLOWLIST receives them.
+      resolve: '@medusajs/medusa/notification',
+      options: {
+        providers: [
+          {
+            resolve: './src/modules/resend',
+            id: 'resend',
+            options: { channels: ['email'], ...emailOptionsFromEnv() },
+          },
+        ],
+      },
     },
   ],
 })

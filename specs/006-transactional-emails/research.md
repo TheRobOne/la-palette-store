@@ -138,3 +138,19 @@ Medusa findings verified against the installed **2.21.1** source in `node_module
   website's mail untouched): SPF/DKIM records from the Resend dashboard, DMARC `p=none` to
   start. Sender `La Palette Garden <zamowienia@lapalettegarden.pl>`, reply-to the kitchen's
   contact address. Needs the domain owner; blocks sending, not development.
+
+## R-11 Verification (T001, 2026-10-26)
+
+- (a) Resend of a failed key: `createNotifications_` gives the entry a **new** `id`
+  (`{ id: generateEntityId(...), ...entry }`), creates nothing for an existing key and then
+  updates by that new id — the existing `failure` row is not the one updated. **Decision**: the
+  retry job does not go through `createNotifications`; it calls the provider's delivery
+  function (`deliverEmail`, shared with `send()`) and updates the existing row with
+  `updateNotifications({ id, status, external_id, data })`.
+- (b) The Notification Module is a default module (`@medusajs/medusa/notification`); its loader
+  reads `options.providers[]` and matches channels from each provider's `options.channels`.
+  Without an `email` provider it would register the Medusa Cloud provider only when cloud
+  options are set — so the `resend` provider is always registered (it logs when no API key).
+- (c) `convertDraftOrderWorkflow` emits `order.placed` (`core-flows/dist/draft-order/workflows/
+  convert-draft-order.js`) — Admin orders get the same e-mails.
+- (d) `cancelOrderWorkflow` emits `order.canceled` with `{ id: order.id }`.
