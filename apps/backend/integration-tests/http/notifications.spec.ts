@@ -7,6 +7,8 @@ import type CateringModuleService from "../../src/modules/catering/service"
 import { addDays, warsawToday } from "../../src/modules/catering/scheduling/time"
 import { expirePickupRequests } from "../../src/jobs/expire-pickup-requests"
 import { remindStaffRequests } from "../../src/jobs/remind-staff-requests"
+import { sendPickupReminders } from "../../src/jobs/send-pickup-reminders"
+import { warsawWallClockToInstant } from "../../src/modules/catering/scheduling/time"
 
 // specs/006-transactional-emails — contracts/emails.md. No RESEND_API_KEY in
 // tests: the provider only logs, and the Notification Module records every
@@ -299,6 +301,130 @@ medusaIntegrationTestRunner({
         await payAndComplete(await prepareCart(await firstTerm(false)))
         expect(await waitForEmails({ template: "order-confirmation" })).toHaveLength(1)
         expect(await emails({ template: "staff-new-order" })).toEqual([])
+      })
+    })
+
+    /** Available standard windows within 3 weeks, in order. */
+    const standardTerms = async (): Promise<Term[]> => {
+      const { data } = await api.get(
+        `/store/catering/slots?from=${today()}&to=${addDays(today(), 21)}`,
+        { headers }
+      )
+      return (data.slots.days as Day[]).flatMap((day) =>
+        day.windows
+          .filter((w) => w.available && !w.requires_confirmation)
+          .map((w) => ({ method: "pickup", date: day.date, start: w.start, end: w.end }))
+      )
+    }
+
+    /** The order's booking once the order.placed subscriber has linked it. */
+    const bookingOf = async (orderId: string) => {
+      for (let i = 0; i < 25; i++) {
+        const [booking] = await catering.listBookings({ order_id: orderId })
+        if (booking) return booking
+        await new Promise((r) => setTimeout(r, 200))
+      }
+      throw new Error(`no booking linked to ${orderId}`)
+    }
+
+    describe("US4 — reschedule and cancellation", () => {
+      it("e-mails the old and new term on every move of an order or a request", async () => {
+        const terms = await standardTerms()
+        const order = await payAndComplete(await prepareCart(terms[0]))
+        await bookingOf(order.id)
+        const admin = await adminHeaders()
+
+        const target = terms.find((t) => t.date !== terms[0].date)!
+        await api.post(
+          `/admin/catering/orders/${order.id}/pickup-term`,
+          { date: target.date, start: target.start, end: target.end, confirm: true },
+          { headers: admin }
+        )
+        const [moved] = await waitForEmails({ template: "pickup-rescheduled" })
+        expect(moved.resource_id).toEqual(order.id)
+        expect(moved.data.previous_term).toEqual({ date: terms[0].date, start: terms[0].start, end: terms[0].end })
+        expect(moved.data.term).toEqual({ date: target.date, start: target.start, end: target.end })
+
+        // a second move is a second e-mail
+        await api.post(
+          `/admin/catering/orders/${order.id}/pickup-term`,
+          { date: terms[0].date, start: terms[0].start, end: terms[0].end, confirm: true },
+          { headers: admin }
+        )
+        expect(await waitForEmails({ template: "pickup-rescheduled" }, 2)).toHaveLength(2)
+
+        // a request (no order yet) is moved too
+        const { requestId } = await sendRequest(await firstTerm(true))
+        await api.post(
+          `/admin/catering/requests/${requestId}/pickup-term`,
+          { date: target.date, start: target.start, end: target.end, confirm: true },
+          { headers: admin }
+        )
+        const forRequest = await waitForEmails({ template: "pickup-rescheduled", resource_id: requestId })
+        expect(forRequest).toHaveLength(1)
+        expect(forRequest[0].data.links).toEqual(
+          expect.objectContaining({ request_status: expect.stringContaining("/catering/zapytanie/") })
+        )
+      })
+
+      it("e-mails the customer when staff cancel the order", async () => {
+        const order = await payAndComplete(await prepareCart(await firstTerm(false)))
+        await bookingOf(order.id)
+        await api.post(`/admin/orders/${order.id}/cancel`, {}, { headers: await adminHeaders() })
+        const [canceled, ...more] = await waitForEmails({ template: "order-canceled" })
+        expect(more).toEqual([])
+        expect(canceled).toEqual(expect.objectContaining({ to: CUSTOMER, resource_id: order.id }))
+      })
+    })
+
+    describe("US5 — pickup reminder", () => {
+      it("reminds once the day before the pickup, after 08:00 Warsaw", async () => {
+        const term = await firstTerm(false)
+        const order = await payAndComplete(await prepareCart(term))
+        await bookingOf(order.id)
+        const dayBefore = addDays(term.date, -1)
+
+        const early = warsawWallClockToInstant(dayBefore, "07:30")
+        expect((await sendPickupReminders(container, early)).reminded).toEqual([])
+
+        const morning = warsawWallClockToInstant(dayBefore, "09:00")
+        expect((await sendPickupReminders(container, morning)).reminded).toEqual([order.id])
+        await sendPickupReminders(container, warsawWallClockToInstant(dayBefore, "10:00"))
+
+        const reminders = await waitForEmails({ template: "pickup-reminder" })
+        expect(reminders.map((n) => [n.to, n.resource_id])).toEqual([[CUSTOMER, order.id]])
+      })
+    })
+
+    describe("E-mail history (Admin)", () => {
+      it("lists an order's e-mails including those of the request it was paid from", async () => {
+        const { cartId, requestId } = await sendRequest(await firstTerm(true))
+        await decide(requestId, "confirm")
+        await waitForEmails({ template: "request-confirmed" })
+        const order = await payAndComplete(cartId)
+        await waitForEmails({ template: "order-confirmation" })
+        await waitForEmails({ template: "staff-new-order" })
+
+        const { data } = await api.get(`/admin/catering/notifications?resource_id=${order.id}`, {
+          headers: await adminHeaders(),
+        })
+        const templates = data.notifications.map((n: { template: string }) => n.template).sort()
+        expect(templates).toEqual([
+          "order-confirmation",
+          "request-confirmed",
+          "request-created",
+          "staff-new-order",
+          "staff-new-request",
+        ])
+        expect(data.notifications.every((n: { resource_id: string }) => n.resource_id === order.id)).toBe(true)
+        expect(data.notifications[0]).toEqual(
+          expect.objectContaining({ status: "success", attempts: 1, to: expect.any(String) })
+        )
+
+        const bad = await api
+          .get("/admin/catering/notifications", { headers: await adminHeaders() })
+          .catch((e: ErrorResponse) => e.response)
+        expect(bad.status).toEqual(400)
       })
     })
   },

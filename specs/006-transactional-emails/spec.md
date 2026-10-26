@@ -230,7 +230,8 @@ time, check one reminder arrives and a second run sends nothing.
 
 ## Assumptions
 
-- Sending uses Resend from a lapalettegarden.pl address (e.g. `zamowienia@lapalettegarden.pl`);
+- Sending uses Resend from `catering@lapalettegarden.pl` (an alias of the company Google Workspace
+  account, so customer replies reach the office inbox);
   the domain owner adds the DNS records for sender authentication before launch. Replies go to
   the kitchen's contact address.
 - Customer e-mails rely on the e-mail address the customer gives at checkout; there are no

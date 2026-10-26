@@ -132,12 +132,24 @@ Medusa findings verified against the installed **2.21.1** source in `node_module
   (booking id), after payment `resource_type: "order"`; the order widget also lists the
   request e-mails through the order's booking.
 
-## R-10 DNS and sender (external dependency)
+## R-10 DNS and sender (external dependency) — decided 2026-10-26
 
-- Resend domain `lapalettegarden.pl` (or subdomain `mail.lapalettegarden.pl` to keep the
-  website's mail untouched): SPF/DKIM records from the Resend dashboard, DMARC `p=none` to
-  start. Sender `La Palette Garden <zamowienia@lapalettegarden.pl>`, reply-to the kitchen's
-  contact address. Needs the domain owner; blocks sending, not development.
+- Company mail is Google Workspace (one account `biuro@lapalettegarden.pl`); DNS at OVH: root MX
+  `smtp.google.com`, SPF `include:_spf.google.com`, DKIM `google._domainkey`, no DMARC (checked
+  2026-10-26).
+- **Sender**: `La Palette Garden – Catering <catering@lapalettegarden.pl>`, reply-to the same
+  address. `catering@` is a free **alias** (or a Google Group) of `biuro@` in Workspace, so
+  customer replies land in the office inbox; staff can answer as `catering@` via Gmail "Send mail
+  as".
+- **Resend domain**: the root `lapalettegarden.pl` (needed for a `@lapalettegarden.pl` sender).
+  Resend's records go only on `send.lapalettegarden.pl` (return-path MX + SPF) and
+  `resend._domainkey` (DKIM) — Workspace's root MX, SPF and DKIM stay untouched ("MX records only
+  impact the subdomain they are associated to", Resend docs). Never add a Resend MX on the root
+  (that is inbound receiving and would take mail away from Gmail); never edit the root SPF.
+- DMARC (`_dmarc`, `p=none`) is optional and added later as a separate step — the only record
+  that concerns all mail of the domain.
+- To test in T040: staff e-mails from `catering@` to `biuro@` (alias → own mailbox) reach the
+  Gmail inbox; otherwise use a Google Group for `catering@`.
 
 ## R-11 Verification (T001, 2026-10-26)
 

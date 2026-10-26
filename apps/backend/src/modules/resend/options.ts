@@ -24,7 +24,7 @@ export function parseAllowlist(value: string | undefined): string[] {
 export function emailOptionsFromEnv(env: NodeJS.ProcessEnv = process.env): EmailDeliveryOptions {
   return {
     api_key: env.RESEND_API_KEY || undefined,
-    from: env.EMAIL_FROM || "La Palette Garden <zamowienia@lapalettegarden.pl>",
+    from: env.EMAIL_FROM || "La Palette Garden – Catering <catering@lapalettegarden.pl>",
     reply_to: env.EMAIL_REPLY_TO || undefined,
     app_env: env.APP_ENV ?? "local",
     allowlist: parseAllowlist(env.NOTIFICATION_ALLOWLIST),

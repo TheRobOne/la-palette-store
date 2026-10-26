@@ -110,9 +110,40 @@ describe("e-mail templates (unit)", () => {
     expect(reminder.subject).toBe("Przypomnienie: zapytanie na pt 30.10.2026 wygaśnie wt. 27.10, 14:00")
   })
 
+  it("tells the customer about a moved pickup (order or request)", () => {
+    const previous_term = { date: "2026-10-29", start: "12:00", end: "13:00" }
+    const forOrder = renderTemplate("pickup-rescheduled", { ...order, previous_term })
+    expect(forOrder.subject).toBe("Zmiana terminu odbioru: pt 30.10.2026")
+    expect(forOrder.text).toContain("zamówienia nr 42")
+    expect(forOrder.text).toContain("Poprzedni termin: czw. 29.10.2026, 12:00–13:00")
+    expect(forOrder.text).toContain("Nowy termin: pt 30.10.2026, 10:00–11:00")
+
+    const forRequest = renderTemplate("pickup-rescheduled", { ...request, previous_term })
+    expect(forRequest.text).toContain("w Twoim zapytaniu")
+    expect(forRequest.text).toContain("https://lapalettegarden.pl/catering/zapytanie/cart_1")
+  })
+
+  it("covers cancellation and the pickup reminder", () => {
+    const canceled = renderTemplate("order-canceled", order)
+    expect(canceled.subject).toBe("Zamówienie nr 42 zostało anulowane")
+    expect(canceled.text).toContain("zwrócimy pieniądze")
+
+    const reminder = renderTemplate("pickup-reminder", order)
+    expect(reminder.subject).toBe("Jutro odbiór zamówienia nr 42")
+    expect(reminder.text).toContain("pt 30.10.2026, 10:00–11:00")
+    expect(reminder.text).toContain("https://www.google.com/maps/search/?api=1&query=")
+    expect(reminder.text).toContain("Mini tarta × 12")
+  })
+
   it("every template renders html with the logo and a plain-text part", () => {
+    const previous_term = { date: "2026-10-29", start: "12:00", end: "13:00" }
     for (const name of Object.keys(TEMPLATES)) {
-      const data = name.startsWith("request") || name.includes("request") ? request : order
+      const data =
+        name === "pickup-rescheduled"
+          ? { ...order, previous_term }
+          : name.includes("request")
+            ? request
+            : order
       const { subject, html, text } = renderTemplate(name, data)
       expect(subject.length).toBeGreaterThan(5)
       expect(html).toContain('lang="pl"')

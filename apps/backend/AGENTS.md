@@ -42,8 +42,13 @@ templates, subjects and required content in `contracts/emails.md`.
   nothing new; errors are logged, never thrown into the order/request flow.
 - **Triggers**: `src/subscribers/email-order-placed.ts` (`order.placed` → `order-confirmation` +
   `staff-new-order`), `src/subscribers/email-request-events.ts` (`catering.request.*`),
-  `src/jobs/remind-staff-requests.ts` (every 15 min), `src/jobs/retry-failed-notifications.ts`
-  (every 15 min, up to 5 attempts within 24 h; updates the failed row itself — research R-11).
+  `src/subscribers/email-pickup-rescheduled.ts` (`catering.pickup.rescheduled`, emitted by
+  `reschedule-order-pickup.ts` for orders and requests → `pickup-rescheduled`, one per move),
+  `src/subscribers/email-order-canceled.ts` (`order.canceled` → `order-canceled`),
+  `src/jobs/remind-staff-requests.ts` (every 15 min), `src/jobs/send-pickup-reminders.ts` (hourly,
+  from 08:00 Warsaw the day before; not for orders placed < 24 h before the window),
+  `src/jobs/retry-failed-notifications.ts` (every 15 min, up to 5 attempts within 24 h; updates the
+  failed row itself — research R-11).
 - **Templates**: `src/lib/emails/templates/*` → `{ subject, html, text }` via the shared layout
   (`layout.ts`, inline brand colours copied from la-palette-garden `globals.css`); data from
   `src/lib/emails/data.ts`, stored on the notification so a retry renders the same e-mail.
@@ -52,6 +57,12 @@ templates, subjects and required content in `contracts/emails.md`.
   outside `APP_ENV=production` only `NOTIFICATION_ALLOWLIST` (addresses or `@domains`) receives
   e-mails, others are logged as suppressed. Links use `STOREFRONT_URL`; sender `EMAIL_FROM`,
   replies `EMAIL_REPLY_TO`.
+- **History**: `GET /admin/catering/notifications?resource_id=<ids>` (an order also lists the
+  e-mails of the request it was paid from); shown by `src/admin/widgets/order-emails.tsx` on the
+  order page and as "Ostatni mail do klienta" on the "Zapytania" page.
+- **Sender**: `catering@lapalettegarden.pl` — an alias of the Google Workspace account, so replies
+  reach the office inbox; Resend's DNS records live only on `send.` and `resend._domainkey`
+  (research R-10 — never touch the root MX/SPF).
 - **Staff settings**: Admin → Settings → Store widget (`src/admin/widgets/notification-settings.tsx`)
   — store metadata `catering_staff_email` (empty = no staff e-mails) and
   `catering_staff_reminder_hours` (1–24, default 4).

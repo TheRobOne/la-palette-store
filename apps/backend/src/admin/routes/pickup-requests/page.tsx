@@ -11,6 +11,11 @@ import {
   REQUEST_STATUS_LABELS,
   timeLeft,
 } from "../../lib/catering-api"
+import {
+  type AdminEmailDto,
+  EMAIL_STATUS_LABELS,
+  emailTemplateLabel,
+} from "../../../lib/emails/template-labels"
 
 const TABS = [
   { value: "pending", label: "Oczekujące", statuses: "requested" },
@@ -29,6 +34,8 @@ const PickupRequestsPage = () => {
   const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("pending")
   const [requests, setRequests] = useState<PickupRequest[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // customer e-mails per request (spec 006), newest first
+  const [emails, setEmails] = useState<Record<string, AdminEmailDto[]>>({})
 
   const load = useCallback(async () => {
     const statuses = TABS.find((t) => t.value === tab)!.statuses
@@ -37,6 +44,16 @@ const PickupRequestsPage = () => {
         `/admin/catering/requests?status=${statuses}`
       )
       setRequests(requests)
+      if (requests.length) {
+        const { notifications } = await adminFetch<{ notifications: AdminEmailDto[] }>(
+          `/admin/catering/notifications?resource_id=${requests.map((r) => r.id).join(",")}`
+        )
+        const byRequest: Record<string, AdminEmailDto[]> = {}
+        for (const n of notifications.filter((n) => !n.template.startsWith("staff-"))) {
+          ;(byRequest[n.resource_id] ??= []).push(n)
+        }
+        setEmails(byRequest)
+      }
     } catch (e) {
       toast.error("Nie udało się wczytać zapytań", { description: String(e) })
     }
@@ -128,6 +145,19 @@ const PickupRequestsPage = () => {
                 <Text size="small">
                   Płatność do {formatDateTime(r.payment_deadline)} ({timeLeft(r.payment_deadline)})
                 </Text>
+              )}
+              {emails[r.id]?.[0] && (
+                <div className="flex items-center gap-x-2">
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Ostatni mail do klienta: {emailTemplateLabel(emails[r.id][0].template)} ·{" "}
+                    {formatDateTime(emails[r.id][0].created_at)}
+                  </Text>
+                  {emails[r.id].some((e) => e.status === "failure") && (
+                    <Badge size="2xsmall" color="red">
+                      {EMAIL_STATUS_LABELS.failure}
+                    </Badge>
+                  )}
+                </div>
               )}
               {r.order_id && (
                 <Link to={`/orders/${r.order_id}`} className="txt-small text-ui-fg-interactive">

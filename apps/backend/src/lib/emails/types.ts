@@ -65,3 +65,8 @@ export type RequestEmailData = EmailOrderData & {
 }
 
 export type RenderedEmail = { subject: string; html: string; text: string }
+
+/** Staff moved the pickup of an order (display_id) or a request (status link). */
+export type RescheduledEmailData = (OrderEmailData | RequestEmailData) & {
+  previous_term: EmailTerm
+}

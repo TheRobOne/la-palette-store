@@ -2,6 +2,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import { findOrderBooking } from "../lib/order-booking"
 import { withCapacityLock } from "../lib/pickup-booking"
+import { emitPickupRescheduled } from "../lib/request-events"
 import { CATERING_MODULE } from "../modules/catering"
 import { CAPACITY_STATUSES, type RequestSnapshot } from "../modules/catering/models/booking"
 import type CateringModuleService from "../modules/catering/service"
@@ -38,7 +39,7 @@ type Previous = {
  * staff confirmation happen in the route; this step applies the change under
  * the new date's capacity lock, keeps the previous term on the booking and
  * mirrors the term into order.metadata.catering_term. Compensation restores
- * both.
+ * both. Emits `catering.pickup.rescheduled` for the customer e-mail.
  */
 const rescheduleOrderPickupStep = createStep(
   "reschedule-order-pickup",
@@ -118,6 +119,15 @@ const rescheduleOrderPickupStep = createStep(
         })
       }
       return result
+    })
+
+    // the customer is told about the new term (spec 006 US4)
+    await emitPickupRescheduled(container, {
+      id: booking.id,
+      cart_id: booking.cart_id,
+      order_id: orderId,
+      previous: { date: booking.date, start: booking.start_time, end: booking.end_time },
+      rescheduled_at: new Date(updated.rescheduled_at ?? Date.now()).toISOString(),
     })
 
     return new StepResponse(updated, previous)
