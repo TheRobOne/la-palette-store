@@ -17,6 +17,19 @@ export const DateRangeQuery = z
     message: `The range may span at most ${MAX_RANGE_DAYS} days`,
   })
 
+/**
+ * Blocked days are few rows, and the schedule page lists a year ahead: a
+ * longer limit than slots/calendar (one year, leap years included).
+ */
+export const MAX_BLOCKED_RANGE_DAYS = 366
+
+export const BlockedDatesQuery = z
+  .object({ from: dateString, to: dateString })
+  .refine(({ from, to }) => to >= from, { message: "`to` must not be before `from`" })
+  .refine(({ from, to }) => daysBetween(from, to) <= MAX_BLOCKED_RANGE_DAYS, {
+    message: `The range may span at most ${MAX_BLOCKED_RANGE_DAYS} days`,
+  })
+
 export const StoreSlotsQuery = z
   .object({
     from: dateString,

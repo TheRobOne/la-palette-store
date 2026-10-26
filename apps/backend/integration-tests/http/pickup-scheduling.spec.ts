@@ -335,6 +335,24 @@ medusaIntegrationTestRunner({
           .catch((e: ErrorResponse) => e.response)
         expect(duplicate.status).toBeGreaterThanOrEqual(400)
 
+        // the schedule page lists a year ahead (longer than the 62-day calendar limit)
+        const plusDays = (date: string, days: number) => {
+          const d = new Date(`${date}T12:00:00Z`)
+          d.setUTCDate(d.getUTCDate() + days)
+          return d.toISOString().slice(0, 10)
+        }
+        const yearAhead = await api.get(
+          `/admin/catering/blocked-dates?from=${term.date}&to=${plusDays(term.date, 365)}`,
+          { headers }
+        )
+        expect(yearAhead.data.blocked_dates.map((b: { date: string }) => b.date)).toContain(term.date)
+        const tooLong = await api
+          .get(`/admin/catering/blocked-dates?from=${term.date}&to=${plusDays(term.date, 367)}`, {
+            headers,
+          })
+          .catch((e: ErrorResponse) => e.response)
+        expect(tooLong.status).toEqual(400)
+
         await api.delete(`/admin/catering/blocked-dates/${data.blocked_date.id}`, { headers })
         expect((await getSlots(term.date, term.date))[0].available).toBe(true)
       })
