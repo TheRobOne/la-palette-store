@@ -29,6 +29,33 @@ Content-Type: application/json
 - Scripts run with `medusa exec` exit before the batch fires: call `revalidateStorefront`
   explicitly at the end of a script that changes the catalog (see `seed-catalog.ts`).
 
+## Transactional e-mails (spec 006)
+
+Spec: [specs/006-transactional-emails](../../specs/006-transactional-emails/) — catalogue of
+templates, subjects and required content in `contracts/emails.md`.
+
+- **Sending**: Medusa's Notification Module with our provider `src/modules/resend` (channel
+  `email`, registered in `medusa-config.ts`). Every e-mail is a notification row: template, data,
+  recipient, `resource_type`/`resource_id` (`order` or `pickup_request` = booking id), status.
+- **Never send directly** — call `sendEmail` / `sendStaffEmail` (`src/lib/emails/send.ts`) with an
+  idempotency key `<template>:<record id>`. The key makes repeated events and job runs send
+  nothing new; errors are logged, never thrown into the order/request flow.
+- **Triggers**: `src/subscribers/email-order-placed.ts` (`order.placed` → `order-confirmation` +
+  `staff-new-order`), `src/subscribers/email-request-events.ts` (`catering.request.*`),
+  `src/jobs/remind-staff-requests.ts` (every 15 min), `src/jobs/retry-failed-notifications.ts`
+  (every 15 min, up to 5 attempts within 24 h; updates the failed row itself — research R-11).
+- **Templates**: `src/lib/emails/templates/*` → `{ subject, html, text }` via the shared layout
+  (`layout.ts`, inline brand colours copied from la-palette-garden `globals.css`); data from
+  `src/lib/emails/data.ts`, stored on the notification so a retry renders the same e-mail.
+  Adding one: renderer + entry in `templates/index.ts` + unit test + row in `contracts/emails.md`.
+- **Environments**: no `RESEND_API_KEY` → only logged (`[e-mail logged] …`, local/CI/tests);
+  outside `APP_ENV=production` only `NOTIFICATION_ALLOWLIST` (addresses or `@domains`) receives
+  e-mails, others are logged as suppressed. Links use `STOREFRONT_URL`; sender `EMAIL_FROM`,
+  replies `EMAIL_REPLY_TO`.
+- **Staff settings**: Admin → Settings → Store widget (`src/admin/widgets/notification-settings.tsx`)
+  — store metadata `catering_staff_email` (empty = no staff e-mails) and
+  `catering_staff_reminder_hours` (1–24, default 4).
+
 ## Kontrakty dla storefrontu
 
 API contracts for la-palette-garden (`src/catering`) that have no Spec Kit spec of their own.
@@ -137,7 +164,7 @@ Full contract: [specs/005-on-request-terms/contracts/store-api.md](../../specs/0
 - Expiry: `src/jobs/expire-pickup-requests.ts` every 5 min; payment re-checks deadlines anyway.
 - Staff: Admin "Zapytania" page, calendar badges, settings toggles; Admin API in
   `specs/005-on-request-terms/contracts/admin-api.md`.
-- Events (no subscribers yet, for the future e-mail feature): `catering.request.created|confirmed|declined|expired|canceled`.
+- Events `catering.request.created|confirmed|declined|expired|canceled` drive the customer and staff e-mails (spec 006, "Transactional e-mails" below).
 
 ### Cart completion errors — `POST /store/carts/:id/complete`
 
