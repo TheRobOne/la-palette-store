@@ -1,34 +1,42 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 2.2.0 → 2.3.0
-Bump rationale: MINOR — adds a new ordering path ("on-request terms": request without payment →
-staff confirm/decline → payment) with new binding rules and test requirements. Nothing is
-removed or redefined; the standard checkout path is unchanged.
+Version change: 2.3.0 → 2.4.0
+Bump rationale: MINOR — city delivery moves from "deferred" to offered at launch (decision
+2026-10-27), with new binding rules on zones, costs and out-of-zone addresses. No principle is
+removed or redefined; pickup rules are unchanged.
 
 Modified principles:
-- II. Event-Catering Ordering UX — new "On-request terms" rule: path without upfront payment,
-  clear labelling in the shop, request not binding until paid, capacity held from the request,
-  automatic release after the staff response time / payment time, confirm-or-decline only,
-  all parameters editable in the Admin (launch values 24 h / 24 h).
-- VI. Tested Critical Commerce Paths — tests for request, confirmation, decline and both
-  expiries, including capacity release.
-- VIII. Backend as Source of Truth — backend owns the on-request state machine (requested →
-  confirmed → paid / declined / expired), deadlines and refusal of payment for unconfirmed or
-  expired requests.
+- II. Event-Catering Ordering UX — launch offers pickup OR delivery; zones by Polish postal
+  codes, zones/codes/prices editable in the Admin; date/slot and address collected per
+  method; zone and cost validated before payment and shown in the cart; out-of-zone address
+  goes through on-request terms (staff set the delivery cost when confirming); on-request
+  windows extended to delivery windows.
+- IV. Food & Consumer-Law Transparency — delivery cost always disclosed before the order
+  (before payment for on-request delivery).
+- VI. Tested Critical Commerce Paths — tests for zone matching, delivery cost and the
+  checkout-to-order flow for both methods.
+- VIII. Backend as Source of Truth — delivery zones and costs are unconditional order rules.
+
+Changed sections:
+- Technology Stack & Constraints → Fulfillment: delivery as a separate shipping fulfillment
+  set with zip geo zones and one priced shipping option per zone; distance-based pricing out
+  of scope unless justified under Principle VII.
 
 Added sections: none
 Removed sections: none
 
-Follow-up TODOs: none.
+Follow-up TODOs: none (zone list, prices, delivery windows and thresholds are Admin data,
+to be supplied by the manager).
 
 Documents requiring updates (not changed by this amendment):
-- ⚠ specs/004-pickup-scheduling/contracts/store-api.md — will gain a non-breaking
-  `requires_confirmation` window field in the on-request feature spec.
-- ⚠ apps/backend/AGENTS.md "Kontrakty dla storefrontu" — request/confirm/pay contract once the
-  feature lands.
-- ⚠ Future Przelewy24 spec — must support paying an existing (confirmed) order.
-- ⚠ la-palette-garden checkout — request path without payment and a "pay for order" page.
+- ⚠ specs/004-pickup-scheduling/spec.md — "Delivery is not offered at launch (constitution
+  2.2.0)" is superseded; delivery windows/lead time per method come in the delivery spec.
+- ⚠ specs/005-on-request-terms — on-request path to cover delivery windows and out-of-zone
+  addresses with a staff-set delivery cost.
+- ⚠ docs/do-omowienia-z-managerem.md — delivery item: zones, prices, delivery windows,
+  minimum order / free-delivery thresholds, who delivers.
+- ⚠ la-palette-garden checkout — delivery option, address, cost in the cart.
 - ✅ .specify/templates/* — read principles at runtime; no change needed.
 -->
 
@@ -63,26 +71,30 @@ business requirement, even though its code lives outside this repository:
   product cards without opening the product page.
 - Products MUST support catering-specific quantities: minimum order quantity, quantity steps,
   and sets priced per piece, per portion or per person, clearly labelled.
-- At launch the only fulfillment method is in-person pickup at the La Palette Garden venue;
-  city delivery in zones is deferred. Checkout MUST nevertheless have a dedicated
-  "fulfillment method" step (pickup / delivery) designed so that adding delivery later does
-  not require rebuilding the checkout path.
-- Checkout MUST collect the event date and time slot for pickup (and for delivery, when
-  delivery is offered); the backend MUST enforce the minimum order lead time, blocked dates
-  and daily capacity limits (Principle VIII), and the storefront MAY repeat these checks to
-  give early feedback.
+- At launch the customer chooses between two fulfillment methods in a dedicated
+  "fulfillment method" step of checkout: in-person pickup at the La Palette Garden venue, or
+  city delivery to an address in a delivery zone. Delivery zones are defined by Polish postal
+  codes; zones, their postal codes and delivery prices MUST be editable by staff in the Admin
+  without a deploy.
+- Checkout MUST collect the event date and time slot for the chosen method (pickup window or
+  delivery window) and, for delivery, the delivery address; the backend MUST enforce the
+  minimum order lead time, blocked dates and daily capacity limits per method
+  (Principle VIII), and the storefront MAY repeat these checks to give early feedback.
 - A minimum order value applies regardless of the fulfillment method. It MUST be configurable
   by staff without a deploy (launch value: 100 zł gross), validated before payment and shown
   to the customer in the cart, not only at the final step.
-- When delivery is offered, delivery zones and costs MUST likewise be validated before payment
-  and communicated in the cart.
+- The delivery zone and delivery cost MUST likewise be validated before payment and
+  communicated in the cart, as soon as the customer gives a postal code.
+- A delivery address outside every zone MUST NOT be rejected outright: it goes through the
+  on-request path below, and staff set the delivery cost when confirming.
 - The customer MAY request a company invoice (NIP and company name/address). Invoice data
   MUST be saved on the order and visible to staff in the Admin.
 - The path from landing page to placed order MUST remain short: product → cart → checkout
   (contact, fulfillment method, date/slot, payment) → confirmation, with guest checkout
   allowed.
-- **On-request terms**: staff MAY mark pickup windows (e.g. days the kitchen does not normally
-  work) as requiring confirmation. For such a term the path is: product → cart → checkout
+- **On-request terms**: staff MAY mark pickup or delivery windows (e.g. days the kitchen does
+  not normally work) as requiring confirmation; a delivery address outside every zone always
+  requires confirmation. For such an order the path is: product → cart → checkout
   (contact, fulfillment method, date/slot) → request sent without payment → staff confirm or
   decline → after confirmation the customer pays for that order → paid order. Rules:
   - the storefront MUST show clearly, before the customer sends anything, that the term
@@ -93,7 +105,8 @@ business requirement, even though its code lives outside this repository:
   - a request takes a place in the daily capacity from the moment it is sent; no staff
     response within the configured time, or no payment within the configured time after
     confirmation, MUST automatically release it and inform the customer;
-  - staff confirm or decline only; proposing another term is out of scope;
+  - staff confirm or decline only (for an out-of-zone address, confirming includes setting
+    the delivery cost); proposing another term is out of scope;
   - which windows are on request, their minimum lead time, the staff response time and the
     payment time (launch values 24 h and 24 h) MUST be editable in the Admin without a deploy.
 
@@ -124,8 +137,8 @@ same place; reusing our own assets keeps it consistent while third-party content
 
 - Every food product MUST display ingredients and the 14 EU allergens (Regulation (EU)
   No 1169/2011), plus dietary labels (vegetarian, vegan, gluten-free, etc.) where applicable.
-- Prices MUST be shown in PLN as gross amounts (VAT included); when delivery is offered, its
-  costs MUST be disclosed before the order is placed.
+- Prices MUST be shown in PLN as gross amounts (VAT included); delivery costs MUST be
+  disclosed before the order is placed (for an on-request delivery, before payment).
 - The store MUST comply with Polish consumer law and GDPR (RODO): terms of service, privacy
   policy, cookie consent, explicit order-with-payment-obligation button, and clear
   cancellation rules for perishable, date-bound goods.
@@ -153,7 +166,8 @@ Rationale: most catering orders are browsed on phones; slow or inaccessible page
 ### VI. Tested Critical Commerce Paths
 
 - Automated tests MUST cover: price and total calculation, minimum quantity/order value rules,
-  lead-time and pickup/delivery-slot validation, and the full checkout-to-order flow, and — for
+  lead-time and pickup/delivery-slot validation, delivery zone matching and delivery cost,
+  and the full checkout-to-order flow for both pickup and delivery, and — for
   on-request terms — sending a request, staff confirmation, staff decline, expiry of an
   unanswered request and expiry of a confirmed but unpaid order, each including the release of
   capacity.
@@ -186,8 +200,8 @@ itself.
 
 - The backend is the single source of truth for order rules: minimum order value, lead time,
   blocked dates, daily capacity limits, catering quantities (minimum quantity, quantity
-  steps) and, when delivery is offered, delivery zones and costs. The backend MUST reject an order that
-  violates any of them regardless of what the storefront sent or validated.
+  steps), delivery zones and delivery costs. The backend MUST reject an order that violates
+  any of them regardless of what the storefront sent or validated.
 - The backend is also the single source of truth for the state of on-request terms
   (requested → confirmed → paid, or declined / expired): it MUST decide which windows require
   confirmation, accept a request only for such a window, hold its capacity, enforce the
@@ -232,8 +246,10 @@ contracts keep two repositories in sync.
   calendar, capacity, minimum order value, invoice data, allergen data) rather than a separate
   admin app.
 - **Fulfillment**: in-person pickup at the venue through Medusa's native pickup fulfillment
-  set (the only method at launch). City delivery, when introduced, MUST be added as a
-  separate shipping fulfillment set with service zones, without changing the pickup setup.
+  set, and city delivery through a separate shipping fulfillment set whose service zones use
+  postal-code (`zip`) geo zones, with one priced shipping option per zone. Delivery MUST NOT
+  change the pickup setup. Distance-based pricing (geocoding, map APIs) is out of scope
+  unless justified under Principle VII.
 - **Payments**: the primary payment provider is Przelewy24 (BLIK, fast bank transfers, cards),
   integrated as a Medusa payment provider module with webhook-based payment confirmation.
   Another Polish payment intermediary MAY be added or substituted only through the same
@@ -296,4 +312,4 @@ contracts keep two repositories in sync.
   AGENTS.md MUST reference this constitution rather than restate it.
 - Compliance is reviewed at each Medusa upgrade and at least once per quarter.
 
-**Version**: 2.3.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-14
+**Version**: 2.4.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-27
