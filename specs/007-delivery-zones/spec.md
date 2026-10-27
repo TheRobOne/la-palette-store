@@ -30,6 +30,9 @@ business questions for the manager — zone data is Admin data, not code."
 - Q: Who delivers, and does it limit deliveries? → A: the venue's own driver; staff set a
   maximum number of deliveries per delivery window in the Admin, on top of the shared daily
   capacity.
+- Q: Postal code prefixes (e.g. "31-7")? → A: no — a zone is a list of full postal codes
+  `XX-XXX` only; the storefront validates the `XX-XXX` format before asking for a price (the
+  backend still rejects anything else).
 - Note: the venue is at the Kraków city border, so zones (including the first one) contain
   postal codes outside Kraków; zones are not tied to a city.
 
@@ -69,26 +72,25 @@ and that the total paid includes it.
 ### User Story 2 - Staff manage zones and prices in the Admin (Priority: P1)
 
 The manager decides the zones (e.g. "Zone 1 — up to about 10 km", "Zone 2 — up to about
-20 km"). Staff enter each zone in the Admin: its name, the postal codes or code prefixes it
-covers, the delivery price and optionally a minimum order value. Changes apply to new carts at
-once, without a developer.
+20 km"). Staff enter each zone in the Admin: its name, the list of full postal codes it
+covers (pasted as a list), the delivery price and optionally a minimum order value. Changes
+apply to new carts at once, without a developer.
 
 **Why this priority**: prices and zone borders will change after the manager's decision and
 over time; a deploy for every change would block the shop.
 
-**Independent Test**: create a zone with prefix "30-0", set its price, and check that a cart
+**Independent Test**: create a zone with code 30-045, set its price, and check that a cart
 with postal code 30-045 gets that price; change the price and check that a new cart gets the
 new one.
 
 **Acceptance Scenarios**:
 
-1. **Given** staff create a zone with exact codes and prefixes, **When** a postal code matches
-   an exact code or a prefix of that zone, **Then** the customer gets that zone's price.
-2. **Given** a postal code matches a prefix in one zone and an exact code in another, **Then**
-   the exact code wins.
-3. **Given** staff try to save a code or prefix already used by another zone at the same level
-   (two identical exact codes or two identical prefixes), **Then** the Admin refuses and names
-   the zone that already has it.
+1. **Given** staff create a zone with a list of postal codes, **When** a cart's postal code is
+   on that list, **Then** the customer gets that zone's price.
+2. **Given** staff paste a list containing an entry that is not a full `XX-XXX` code, **Then**
+   the Admin refuses to save and names the invalid entries.
+3. **Given** staff try to save a code already used by another zone, **Then** the Admin refuses
+   and names the zone that already has it.
 4. **Given** staff change a zone's price, **Then** placed orders keep the price they were paid
    with, and only carts priced from then on use the new price.
 
@@ -181,8 +183,9 @@ reminder for the address, window and delivery cost, and the absence of pickup wo
 
 ### Edge Cases
 
-- A postal code in the wrong format (e.g. "30001", "30 001") → normalised to NN-NNN when
-  unambiguous; otherwise the customer is asked to correct it and no price is shown.
+- A postal code not in the `XX-XXX` format (e.g. "30001", "30 001", "31-7") → the storefront
+  asks for a correct code before showing a price; if it reaches the backend anyway, the quote
+  answers "invalid" and the order or request is refused.
 - A street address whose city does not match the postal code → accepted; the postal code
   decides the zone (the kitchen can still decline a request or contact the customer).
 - Free-delivery threshold reached and then the cart is reduced below it → delivery cost comes
@@ -208,9 +211,9 @@ reminder for the address, window and delivery cost, and the absence of pickup wo
 - **FR-002**: For delivery the customer MUST give a delivery address (street and number, postal
   code, city) and a contact phone number; an order or request with delivery and without them
   MUST be refused.
-- **FR-003**: The delivery zone MUST be decided by the postal code alone. A code matches a zone
-  when it equals one of the zone's exact codes or starts with one of its prefixes; an exact
-  match beats a prefix match, and a longer prefix beats a shorter one.
+- **FR-003**: The delivery zone MUST be decided by the postal code alone: the zone whose list
+  contains the cart's postal code exactly. Only full codes in the `XX-XXX` format are accepted;
+  any other value MUST be treated as invalid (no price, order refused).
 - **FR-004**: As soon as the postal code is known, the storefront MUST be able to read the zone
   and the delivery price, or the information that the address is outside every zone, and show
   it in the cart (constitution II).
@@ -220,9 +223,9 @@ reminder for the address, window and delivery cost, and the absence of pickup wo
 - **FR-006**: The delivery price MUST be stored on the order as a separate line in PLN gross
   and included in the total paid; later zone changes MUST NOT alter placed orders.
 - **FR-007**: Staff MUST be able, in the Admin and without a deploy, to create, edit and
-  delete zones: name, exact postal codes, postal code prefixes, delivery price (PLN gross) and
-  an optional minimum order value. Saving the same exact code or the same prefix in two zones
-  MUST be refused.
+  delete zones: name, list of postal codes (pasted as a list), delivery price (PLN gross) and
+  an optional minimum order value. Saving an entry that is not a full `XX-XXX` code, or a code
+  that already belongs to another zone, MUST be refused with the entries named.
 - **FR-008**: The minimum order value for a delivery order MUST be the higher of the global
   minimum and the zone's minimum, if set; it MUST be validated before payment and shown in the
   cart like the global minimum.
@@ -267,9 +270,8 @@ reminder for the address, window and delivery cost, and the absence of pickup wo
 
 ### Key Entities
 
-- **Delivery zone**: name, exact postal codes, postal code prefixes, delivery price (PLN
-  gross), optional minimum order value. Each exact code and each prefix belongs to at most one
-  zone.
+- **Delivery zone**: name, list of full postal codes, delivery price (PLN gross), optional
+  minimum order value. Each postal code belongs to at most one zone.
 - **Delivery settings**: optional free-delivery threshold; maximum number of deliveries per
   delivery window.
 - **Delivery term**: the date and delivery window of an order; like the pickup term of 004,
@@ -303,17 +305,16 @@ reminder for the address, window and delivery cost, and the absence of pickup wo
 
 - **Zone data is Admin data, not code.** Until the manager decides, setup scripts create two
   example zones for testing: "Strefa 1" around the venue at 31-762 Kraków, which sits at the
-  city border — Kraków prefixes such as "31-7", "31-8", "31-9" plus exact codes of
+  city border — a few Kraków codes near the venue (e.g. 31-762, 31-763, 31-764) plus codes of
   neighbouring places outside Kraków such as 32-005 (Niepołomice), 32-010
-  (Kocmyrzów-Luborzyca) and 32-020 (Wieliczka) — at 30 zł, and "Strefa 2" (the rest of
-  Kraków, "30-" and "31-") at 50 zł; no per-zone minimums, no free-delivery threshold, at
-  most 2 deliveries per window. Real zones, codes, prices and the per-window maximum are
-  entered by staff after the manager's decision.
+  (Kocmyrzów-Luborzyca) and 32-020 (Wieliczka) — at 30 zł, and "Strefa 2" (a few central
+  Kraków codes, e.g. 30-001, 31-001) at 50 zł; no per-zone minimums, no free-delivery
+  threshold, at most 2 deliveries per window. Real zones, code lists, prices and the
+  per-window maximum are entered by staff after the manager's decision.
 - Because zones mix Kraków and neighbouring municipalities, a zone is defined only by postal
-  codes and prefixes, never by city name; outside Kraków exact codes are preferred over
-  prefixes, since a short prefix (e.g. "32-0") reaches places far apart.
+  codes, never by city name.
 - The manager thinks in kilometres ("up to 10 km"); staff translate each radius into a list
-  of postal codes and prefixes once. Distance is never computed by the system (constitution,
+  of full postal codes once (a zone may hold a few hundred codes, pasted as a list). Distance is never computed by the system (constitution,
   Stack → Fulfillment).
 - Default delivery schedule (editable): the same weekdays as pickup, windows of two hours
   between 10:00 and 18:00, lead time 48 h like pickup, the same booking horizon.

@@ -1,6 +1,6 @@
 # Do omówienia z managerem — sklep cateringowy
 
-Stan na 26.10.2026. Sprawy, które wymagają decyzji biznesowej albo akceptacji treści. Przy każdej
+Stan na 27.10.2026. Sprawy, które wymagają decyzji biznesowej albo akceptacji treści. Przy każdej
 jest miejsce na decyzję; po rozmowie wpisujemy ją tutaj i przenosimy do kodu lub specyfikacji.
 
 Plik jest aktualizowany przy każdej implementacji (zasada w `AGENTS.md`, „Open business
@@ -96,10 +96,49 @@ zablokowania (wesela, urlopy, święta)?
 
 **Decyzja:** …
 
-## 4. Na później (bez pilności)
+## 4. Dostawa (spec 007)
+
+Ustalone 27.10.2026: dostawa jest od startu, obok odbioru osobistego. Strefy to **listy pełnych
+kodów pocztowych** (XX-XXX); kod spoza wszystkich stref idzie „na zapytanie” — kuchnia
+potwierdza i podaje koszt dostawy albo odrzuca. Dowozi własny kierowca, z limitem dostaw na
+jedno okno. Darmowa dostawa od kwoty — jeden próg dla wszystkich stref, na start wyłączony.
+Zapytania spoza stref przyjmujemy z całej Polski.
+
+### 4.1 Strefy, kody i ceny
+
+- Ile stref i jakie ceny? Na testy są dwie przykładowe: Strefa 1 (okolice lokalu, też kody spoza
+  Krakowa, np. Niepołomice, Wieliczka) — 30 zł, Strefa 2 (reszta Krakowa) — 50 zł.
+- **Listy kodów**: w Krakowie kody są przypisane do ulic, więc strefa „do 10 km” to kilkaset
+  kodów. Propozycja: przygotujemy listy z oficjalnego spisu kodów Poczty Polskiej po dzielnicach
+  Krakowa i gminach wokół lokalu; manager/kuchnia przeglądają i zatwierdzają, obsługa wkleja je
+  w panelu. Prostszy start: Strefa 1 = najbliższe okolice, Strefa 2 = cały Kraków, reszta na
+  zapytanie. Który wariant?
+- Czy któraś strefa ma wyższą minimalną wartość zamówienia niż 100 zł?
+
+| Ustawienie | Domyślnie | Decyzja |
+|---|---|---|
+| Strefy i ceny | 2 przykładowe (30 zł / 50 zł) | … |
+| Minimum dla strefy | brak (obowiązuje 100 zł) | … |
+| Darmowa dostawa od kwoty | wyłączona | … |
+| Maks. dostaw w jednym oknie (kierowca) | 2 | … |
+| Okna dostaw | dni jak odbiory, co 2 h 10:00–18:00 | … |
+| Wyprzedzenie dla dostawy | 48 h | … |
+
+### 4.2 Treści dla klienta
+
+- Komunikat dla adresu spoza stref (sklep, przed wysłaniem): „Dostawa pod ten adres wymaga
+  potwierdzenia kuchni. Koszt dostawy podamy razem z potwierdzeniem, płacisz dopiero po nim.”
+- Maile dla dostaw (spec 007, `contracts/emails.md`) — m.in. przypomnienie „Jutro dostawa
+  zamówienia nr …” z tekstem „kierowca zadzwoni pod numer …”. Do akceptacji jak pozostałe maile
+  (pkt 1.2).
+- Dostawa obejmuje tylko dowiezienie — bez rozstawiania bufetu i odbioru naczyń. Czy to
+  zgodne z ofertą? Jeśli naczynia/sprzęt wracają, trzeba to opisać w regulaminie.
+
+**Decyzja:** …
+
+## 5. Na później (bez pilności)
 
 - **Konta klientów** (historia zamówień, ponowne zamówienie, zapamiętane dane do faktury) —
   proponujemy dopiero po starcie, gdy pojawią się stali klienci firmowi. Czy są tacy już teraz?
-- **Dostawa** zamiast samego odbioru osobistego — strefy i ceny dowozu, jeśli ma wejść.
 
 **Decyzja:** …
