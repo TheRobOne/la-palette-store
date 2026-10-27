@@ -63,6 +63,10 @@ await sdk.store.cart.update(cartId, {
   else is not priced and completion is refused.
 - Medusa re-prices the delivery shipping method on every cart update (address or items); read
   the amount from `cart.shipping_total` / `cart.shipping_methods[0].amount` after the update.
+- "Dostawa" is a **calculated** option: `listCartOptions` returns it without `amount`. Before it
+  is added, read its price with `sdk.store.fulfillment.calculate(optionId, { cart_id })`
+  (`POST /store/shipping-options/:id/calculate`, needs the cart's postal code), or show the
+  quote (§4).
 - Do not put invoice data here (`billing_address`, unchanged).
 
 ## 4. Delivery quote — `GET /store/catering/delivery-quote`

@@ -39,6 +39,7 @@ import type {
   PricingUnit,
 } from "../modules/catering/models/catering-product-info"
 import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../lib/pickup"
+import { setupDelivery } from "./setup-delivery"
 import { setupPickup } from "./setup-pickup"
 import { setupPickupSchedule } from "./setup-pickup-schedule"
 
@@ -323,9 +324,10 @@ export default async function seed({ container }: ExecArgs) {
     logger.info(`Stock location "${STOCK_LOCATION_NAME}" already exists.`)
   }
 
-  // --- In-person pickup: the only fulfillment at launch -------------------
+  // --- In-person pickup and city delivery (spec 007) ----------------------
   await setupPickup(container)
   await setupPickupSchedule(container)
+  await setupDelivery(container)
 
   // --- Store: PLN default currency, default region + sales channel ------
   const { data: stores } = await query.graph({

@@ -13,12 +13,17 @@ describe("parseTerm (unit, no database)", () => {
     expect(parseTerm({ catering_term: valid, invoice_requested: true })).toEqual(valid)
   })
 
+  it("reads a delivery term (spec 007)", () => {
+    const delivery = { ...valid, method: "delivery" }
+    expect(parseTerm({ catering_term: delivery })).toEqual(delivery)
+  })
+
   it.each([
     ["missing metadata", null],
     ["missing key", { other: 1 }],
     ["string instead of object", { catering_term: "2026-10-20" }],
     ["array", { catering_term: [valid] }],
-    ["unknown method", { catering_term: { ...valid, method: "delivery" } }],
+    ["unknown method", { catering_term: { ...valid, method: "courier" } }],
     ["impossible date", { catering_term: { ...valid, date: "2026-02-30" } }],
     ["invalid time", { catering_term: { ...valid, end: "24:00" } }],
     ["start equal to end", { catering_term: { ...valid, end: "11:00" } }],
@@ -43,6 +48,10 @@ describe("messages", () => {
       message:
         "Wybrany termin odbioru (20.10.2026, 11:00–12:00) nie jest już dostępny. Wybierz inny termin.",
     })
+    expect(missingTermError("delivery").message).toEqual("Wybierz termin dostawy.")
+    expect(unavailableTermError({ ...valid, method: "delivery" } as never).message).toEqual(
+      "Wybrany termin dostawy (20.10.2026, 11:00–12:00) nie jest już dostępny. Wybierz inny termin."
+    )
     expect(lockBusyError().message).toEqual(
       "Nie udało się zarezerwować terminu. Spróbuj ponownie za chwilę."
     )

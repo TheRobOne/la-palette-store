@@ -22,6 +22,8 @@ export const CAPACITY_STATUSES: BookingStatus[] = ["requested", "confirmed", "ac
 export type RequestSnapshot = {
   items: { variant_id: string; quantity: number }[]
   term: { method: string; date: string; start: string; end: string }
+  /** delivery requests (spec 007): payment requires the same postal code */
+  delivery?: { postal_code: string }
 }
 
 /**
@@ -53,6 +55,15 @@ const Booking = model
     decided_by: model.text().nullable(),
     // { items: [{ variant_id, quantity }], term } as sent; payment requires a match
     request_snapshot: model.json().nullable(),
+    // delivery (specs/007-delivery-zones); null for pickup
+    // XX-XXX
+    delivery_postal_code: model.text().nullable(),
+    // matched zone at booking time; null = out of zone
+    delivery_zone_id: model.text().nullable(),
+    // name at booking time, so history survives renames and deletes
+    delivery_zone_name: model.text().nullable(),
+    // gross PLN; in zone: price paid; out of zone: set by staff on confirm
+    delivery_cost: model.bigNumber().nullable(),
   })
   .indexes([
     { name: "IDX_booking_date", on: ["date"], where: "deleted_at IS NULL" },

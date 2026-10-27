@@ -6,7 +6,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { assertCartOrderRules, loadCartForChecks } from "../lib/cart-order-checks"
-import { withCapacityLock } from "../lib/pickup-booking"
+import { bookingDeliveryFields, withCapacityLock } from "../lib/pickup-booking"
 import { emitRequestEvent, REQUEST_EVENTS } from "../lib/request-events"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
@@ -40,7 +40,7 @@ const sendPickupRequestStep = createStep(
     if (cart.completed_at) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Cart is already completed")
     }
-    const term = await assertCartOrderRules(container, cart)
+    const { term, delivery } = await assertCartOrderRules(container, cart)
 
     const { booking, createdId } = await withCapacityLock(container, term.date, async () => {
       const [existing] = await catering.listBookings({
@@ -83,6 +83,7 @@ const sendPickupRequestStep = createStep(
           warsawWallClockToInstant(term.date, term.start)
         ),
         request_snapshot: buildSnapshot(cart, term),
+        ...bookingDeliveryFields(delivery),
       })
       return { booking, createdId: booking.id as string | undefined }
     })

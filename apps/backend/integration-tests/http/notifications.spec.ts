@@ -124,7 +124,7 @@ medusaIntegrationTestRunner({
       const {
         data: { shipping_options },
       } = await api.get(`/store/shipping-options?cart_id=${cart.id}`, { headers })
-      await api.post(`/store/carts/${cart.id}/shipping-methods`, { option_id: shipping_options[0].id }, { headers })
+      await api.post(`/store/carts/${cart.id}/shipping-methods`, { option_id: shipping_options.find((o: { type: { code: string } }) => o.type.code === "pickup").id }, { headers })
       await api.post(`/store/carts/${cart.id}`, { metadata: { catering_term: term, ...metadata } }, { headers })
       return cart.id as string
     }

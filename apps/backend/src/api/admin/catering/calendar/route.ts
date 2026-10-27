@@ -17,13 +17,30 @@ type OrderSummary = {
   response_deadline?: string | null
   payment_deadline?: string | null
   status: string | null
+  // spec 007: delivery details (null for pickup)
+  method: string
+  address: string | null
+  phone: string | null
+  zone_name: string | null
+  delivery_cost: number | null
 }
+
+type AddressLike = {
+  address_1?: string | null
+  postal_code?: string | null
+  city?: string | null
+  phone?: string | null
+} | null | undefined
+
+const formatAddress = (a: AddressLike) =>
+  a?.address_1 ? [a.address_1, [a.postal_code, a.city].filter(Boolean).join(" ")].join(", ") : null
 
 /**
  * `GET /admin/catering/calendar?from&to` — active bookings grouped by day and
  * window, with used/total capacity and blocked days (contracts/admin-api.md).
- * Windows come from the current pickup rules plus any booked window that is
- * no longer in the rules.
+ * Windows come from the current pickup and delivery rules plus any booked
+ * window that is no longer in the rules; each window carries its method
+ * (specs/007-delivery-zones contracts/admin-api.md "Calendar").
  */
 export async function GET(
   req: AuthenticatedMedusaRequest<unknown, DateRangeQueryType>,
@@ -35,7 +52,7 @@ export async function GET(
 
   const [[settings], windows, blocked, bookings] = await Promise.all([
     catering.listSchedulingSettings({}, { take: 1 }),
-    catering.listWindowRules({ fulfillment_method: "pickup" }),
+    catering.listWindowRules({}),
     catering.listBlockedDates({ date: { $gte: from, $lte: to } }),
     catering.listBookings({ status: CAPACITY_STATUSES, date: { $gte: from, $lte: to } }),
   ])
@@ -44,7 +61,7 @@ export async function GET(
   const { data: orders } = orderIds.length
     ? await query.graph({
         entity: "order",
-        fields: ["id", "display_id", "email", "status"],
+        fields: ["id", "display_id", "email", "status", "shipping_address.*"],
         filters: { id: orderIds },
       })
     : { data: [] }
@@ -53,35 +70,53 @@ export async function GET(
   // requests have no order yet: their contact e-mail comes from the cart
   const requestCartIds = bookings.filter((b) => !b.order_id).map((b) => b.cart_id)
   const { data: carts } = requestCartIds.length
-    ? await query.graph({ entity: "cart", fields: ["id", "email"], filters: { id: requestCartIds } })
+    ? await query.graph({
+        entity: "cart",
+        fields: ["id", "email", "shipping_address.*"],
+        filters: { id: requestCartIds },
+      })
     : { data: [] }
-  const cartEmail = new Map(carts.map((c) => [c.id as string, (c.email as string | null) ?? null]))
+  const cartById = new Map(carts.map((c) => [c.id as string, c]))
   const iso = (value: Date | string | null | undefined) =>
     value ? new Date(value).toISOString() : null
 
   const days = []
   for (let date = from; date <= to; date = addDays(date, 1)) {
     const dayBookings = bookings.filter((b) => b.date === date)
-    const slots = new Map<string, { start: string; end: string; orders: OrderSummary[] }>()
-    const slot = (start: string, end: string) => {
-      const key = `${start}-${end}`
+    const slots = new Map<
+      string,
+      { method: string; start: string; end: string; orders: OrderSummary[] }
+    >()
+    const slot = (method: string, start: string, end: string) => {
+      const key = `${method}|${start}-${end}`
       if (!slots.has(key)) {
-        slots.set(key, { start, end, orders: [] })
+        slots.set(key, { method, start, end, orders: [] })
       }
       return slots.get(key)!
     }
 
     windows
       .filter((w) => w.weekday === isoWeekday(date))
-      .forEach((w) => slot(w.start_time, w.end_time))
+      .forEach((w) => slot(w.fulfillment_method, w.start_time, w.end_time))
     for (const b of dayBookings) {
       const order = b.order_id ? orderById.get(b.order_id) : undefined
-      slot(b.start_time, b.end_time).orders.push({
+      const cart = cartById.get(b.cart_id)
+      const address = (order?.shipping_address ?? cart?.shipping_address) as AddressLike
+      const isDelivery = b.fulfillment_method === "delivery"
+      slot(b.fulfillment_method, b.start_time, b.end_time).orders.push({
         order_id: b.order_id ?? null,
         display_id: (order?.display_id as number | undefined) ?? null,
-        email: (order?.email as string | undefined) ?? cartEmail.get(b.cart_id) ?? null,
+        email: (order?.email as string | undefined) ?? (cart?.email as string | undefined) ?? null,
         status: (order?.status as string | undefined) ?? null,
         booking_status: b.status,
+        method: b.fulfillment_method,
+        address: isDelivery ? formatAddress(address) : null,
+        phone: isDelivery ? address?.phone ?? null : null,
+        zone_name: isDelivery ? b.delivery_zone_name ?? null : null,
+        delivery_cost:
+          isDelivery && b.delivery_cost !== null && b.delivery_cost !== undefined
+            ? Number(b.delivery_cost)
+            : null,
         ...(b.requires_confirmation
           ? {
               request_id: b.id,
@@ -103,7 +138,9 @@ export async function GET(
         ? { id: block.id, reason: block.reason, method: block.fulfillment_method }
         : null,
       used: dayBookings.length,
-      windows: [...slots.values()].sort((a, b) => a.start.localeCompare(b.start)),
+      windows: [...slots.values()].sort(
+        (a, b) => a.start.localeCompare(b.start) || a.method.localeCompare(b.method)
+      ),
     })
   }
 

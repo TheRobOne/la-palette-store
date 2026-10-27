@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
+import type { DeliveryQuote } from "../modules/catering/delivery/quote"
 import type { RequestSnapshot } from "../modules/catering/models/booking"
 import {
   checkTerm,
@@ -20,6 +21,20 @@ import {
   lockBusyError,
   unavailableTermError,
 } from "../modules/catering/scheduling/term"
+import { outOfZoneRequestError } from "./delivery-checks"
+
+/** Delivery columns of a booking (spec 007); all null for pickup. */
+export function bookingDeliveryFields(delivery: DeliveryQuote | null | undefined) {
+  if (!delivery) {
+    return {}
+  }
+  return {
+    delivery_postal_code: delivery.postal_code,
+    delivery_zone_id: delivery.zone?.id ?? null,
+    delivery_zone_name: delivery.zone?.name ?? null,
+    delivery_cost: delivery.amount,
+  }
+}
 
 /**
  * Taking a place in the kitchen's daily capacity when a cart is completed
@@ -96,7 +111,8 @@ type CartForReservation = {
 export async function reservePickupTerm(
   container: MedusaContainer,
   cart: CartForReservation,
-  term: CateringTerm
+  term: CateringTerm,
+  delivery: DeliveryQuote | null = null
 ): Promise<BookingCompensation> {
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
@@ -128,6 +144,12 @@ export async function reservePickupTerm(
       return { revert: { id: request.id, status: "confirmed" } }
     }
 
+    // An out-of-zone delivery always needs the kitchen's confirmation
+    // (spec 007 FR-010); the request path is completed in US3.
+    if (delivery?.status === "out_of_zone") {
+      throw outOfZoneRequestError()
+    }
+
     const existing = await catering.listBookings({ cart_id: cart.id, status: "active" })
     if (existing.some((b) => sameTerm(b, term))) {
       return undefined
@@ -149,6 +171,7 @@ export async function reservePickupTerm(
       start_time: term.start,
       end_time: term.end,
       status: "active",
+      ...bookingDeliveryFields(delivery),
     })
     return { created: booking.id }
   })

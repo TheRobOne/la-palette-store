@@ -1,12 +1,15 @@
 import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import { assertCartOrderRules } from "../../lib/cart-order-checks"
+import { assertDeliveryAmount } from "../../lib/delivery-checks"
 import { releasePickupBooking, reservePickupTerm } from "../../lib/pickup-booking"
 
 /**
  * Order rules enforced when a cart is completed, before the order is created
  * and the payment is authorized, in this order: minimum order value →
- * invoice data → pickup term (specs/004-pickup-scheduling).
+ * invoice data → term (specs/004-pickup-scheduling) → method and, for
+ * delivery, address, postal code, zone minimum and the delivery amount
+ * (specs/007-delivery-zones research R-06).
  *
  * A workflow hook accepts only ONE handler, so every future completion rule
  * must be added here rather than in a new file.
@@ -23,8 +26,11 @@ import { releasePickupBooking, reservePickupTerm } from "../../lib/pickup-bookin
  */
 completeCartWorkflow.hooks.validate(
   async ({ cart }, { container }) => {
-    const term = await assertCartOrderRules(container, cart)
-    const compensation = await reservePickupTerm(container, cart, term)
+    const { term, delivery } = await assertCartOrderRules(container, cart)
+    if (delivery) {
+      assertDeliveryAmount(cart.shipping_methods?.[0]?.amount, delivery)
+    }
+    const compensation = await reservePickupTerm(container, cart, term, delivery)
     return new StepResponse(undefined, compensation)
   },
   async (compensation, { container }) => {

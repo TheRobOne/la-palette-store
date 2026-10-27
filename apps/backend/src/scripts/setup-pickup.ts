@@ -1,6 +1,6 @@
 /**
- * Idempotent setup of in-person pickup — the only way orders are fulfilled
- * at launch (constitution: delivery zones are deferred).
+ * Idempotent setup of in-person pickup at the venue (city delivery is set
+ * up next to it by setup-delivery.ts, specs/007-delivery-zones).
  *
  *   stock location "Kuchnia La Palette" (address of the venue)
  *     └─ fulfillment set "Odbiór osobisty" (type pickup)
@@ -146,22 +146,6 @@ export async function setupPickup(container: MedusaContainer) {
     })
     logger.info(`Created shipping option "${PICKUP_SHIPPING_OPTION_NAME}" (0 zł).`)
   }
-
-  // Pickup is the only fulfillment at launch: flag anything else so it is
-  // not silently offered to customers (never deleted automatically).
-  const others = (
-    await fulfillmentModuleService.listShippingOptions(
-      {},
-      { relations: ["service_zone.fulfillment_set"] }
-    )
-  ).filter((option) => option.service_zone?.fulfillment_set?.type !== "pickup")
-  if (others.length) {
-    logger.warn(
-      `Non-pickup shipping options exist (${others
-        .map((o) => o.name)
-        .join(", ")}) — pickup should be the only option at launch.`
-    )
-  }
 }
 
 /**
@@ -170,7 +154,7 @@ export async function setupPickup(container: MedusaContainer) {
  * seed-catalog.ts both take the first profile, so this does too (and creates
  * it when the database has none yet — seed then reuses it for products).
  */
-async function resolveDefaultShippingProfileId(
+export async function resolveDefaultShippingProfileId(
   container: MedusaContainer
 ): Promise<string> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)

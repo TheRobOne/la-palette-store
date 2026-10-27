@@ -64,6 +64,19 @@ module.exports = defineConfig({
       resolve: './src/modules/catering',
     },
     {
+      // Pickup uses the default manual provider; city delivery is one
+      // calculated option priced from our postal-code zones
+      // (specs/007-delivery-zones research R-02). Listing providers here
+      // replaces Medusa's default, so `manual` must stay.
+      resolve: '@medusajs/medusa/fulfillment',
+      options: {
+        providers: [
+          { resolve: '@medusajs/medusa/fulfillment-manual', id: 'manual' },
+          { resolve: './src/modules/catering-delivery', id: 'catering-delivery' },
+        ],
+      },
+    },
+    {
       // Transactional e-mails (specs/006-transactional-emails): Resend for the
       // `email` channel; without RESEND_API_KEY e-mails are only logged, and
       // outside production only NOTIFICATION_ALLOWLIST receives them.

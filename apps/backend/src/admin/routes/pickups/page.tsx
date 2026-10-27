@@ -16,6 +16,8 @@ type CalendarDay = {
   blocked: { id: string; reason: string | null; method: string | null } | null
   used: number
   windows: {
+    // spec 007: pickup and delivery windows side by side
+    method: "pickup" | "delivery"
     start: string
     end: string
     orders: {
@@ -28,9 +30,23 @@ type CalendarDay = {
       request_id?: string
       response_deadline?: string | null
       payment_deadline?: string | null
+      address: string | null
+      phone: string | null
+      zone_name: string | null
+      delivery_cost: number | null
     }[]
   }[]
 }
+
+const formatPln = (amount: number) => `${amount.toFixed(2).replace(".", ",")} zł`
+
+/** Address, phone, zone and cost of a delivery order or request. */
+const deliveryLine = (o: CalendarDay["windows"][number]["orders"][number]) =>
+  o.address
+    ? [o.address, o.phone, o.zone_name ?? "poza strefą", o.delivery_cost === null ? null : formatPln(o.delivery_cost)]
+        .filter(Boolean)
+        .join(" · ")
+    : null
 
 type Calendar = { daily_capacity: number; days: CalendarDay[] }
 
@@ -43,7 +59,7 @@ const weekdayLabel = (date: string) => {
 }
 
 /**
- * "Odbiory": upcoming pickups grouped by day and window, with used/total
+ * "Odbiory i dostawy": upcoming pickups and deliveries grouped by day and window, with used/total
  * capacity and blocked days (specs/004-pickup-scheduling US4).
  */
 const PickupsPage = () => {
@@ -96,7 +112,7 @@ const PickupsPage = () => {
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <div>
-          <Heading level="h1">Odbiory</Heading>
+          <Heading level="h1">Odbiory i dostawy</Heading>
           <Text size="small" className="text-ui-fg-subtle">
             Zamówienia według dnia i godziny odbioru.
           </Text>
@@ -159,11 +175,14 @@ const PickupsPage = () => {
             {day.windows
               .filter((w) => w.orders.length)
               .map((w) => (
-                <div key={w.start} className="flex gap-x-4 pl-4">
+                <div key={`${w.method}-${w.start}`} className="flex gap-x-4 pl-4">
                   <Text size="small" className="w-28 text-ui-fg-subtle">
                     {w.start}–{w.end}
                   </Text>
-                  <div className="flex flex-wrap gap-x-3">
+                  <Badge size="2xsmall" color={w.method === "delivery" ? "purple" : "grey"}>
+                    {w.method === "delivery" ? "Dostawa" : "Odbiór"}
+                  </Badge>
+                  <div className="flex flex-col gap-y-1">
                     {w.orders.map((o, i) =>
                       o.booking_status === "requested" || o.booking_status === "confirmed" ? (
                         <Link
@@ -171,7 +190,10 @@ const PickupsPage = () => {
                           to="/pickup-requests"
                           className="txt-small text-ui-fg-interactive"
                         >
-                          {o.email ?? "zapytanie"}{" "}
+                          {o.email ?? "zapytanie"}
+                          {deliveryLine(o) ? (
+                            <span className="text-ui-fg-subtle"> — {deliveryLine(o)}</span>
+                          ) : null}{" "}
                           <Badge size="2xsmall" color={o.booking_status === "requested" ? "orange" : "blue"}>
                             {o.booking_status === "requested"
                               ? `Zapytanie – odpowiedz ${timeLeft(o.response_deadline ?? null)}`
@@ -186,6 +208,9 @@ const PickupsPage = () => {
                         >
                           #{o.display_id} {o.email}
                           {o.status === "canceled" ? " (anulowane)" : ""}
+                          {deliveryLine(o) ? (
+                            <span className="text-ui-fg-subtle"> — {deliveryLine(o)}</span>
+                          ) : null}
                         </Link>
                       ) : (
                         <Text key={i} size="small" className="text-ui-fg-muted">
@@ -204,7 +229,7 @@ const PickupsPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Odbiory",
+  label: "Odbiory i dostawy",
 })
 
 export default PickupsPage

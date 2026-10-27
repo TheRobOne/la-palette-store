@@ -178,3 +178,20 @@ overwritten. The "non-pickup option" warning in `setup-pickup.ts` is removed.
 **Decision**: `FULFILLMENT_METHODS = ["pickup", "delivery"]`; `medusa db:generate catering`
 emits the check-constraint change for `blocked_date`, `booking`, `fulfillment_schedule`,
 `window_rule`, plus the new tables/columns, in one new migration.
+
+## R-13 — Verification in 2.21.1 (task T001)
+
+- (a) `refreshCartShippingMethodsWorkflow` and `addShippingMethodToCartWorkflow` run
+  `listShippingOptionsForCartWithPricingWorkflow.runAsStep({ input: { cart_id, options, … } })`,
+  so a handler on its `setCalculatedShippingPricingContext` hook prices every add and every
+  refresh. A refreshed method keeps only options that are present **and** have a defined
+  `calculated_amount` — the provider must always return a number (R-02).
+- (b) The hook gets `{ input }` with `input.cart_id`; the provider context is
+  `{ ...hookResult, ...cart, items, from_location }` (cart keys win on a name clash, so the
+  `catering_delivery_amount` key is safe).
+- (c) `defineConfig` registers the fulfillment module with `fulfillment-manual` (id `manual`) by
+  default; a custom `fulfillment` entry replaces those options, so it must list `manual` again
+  next to `catering-delivery`.
+- (d) Adding an option removes the cart's methods of the same shipping profile first (replace).
+  For the re-price after a staff confirmation `refreshCartShippingMethodsWorkflow({ cart_id })`
+  is enough and simpler than re-adding (used in T027).

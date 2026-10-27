@@ -16,6 +16,11 @@ import {
   StoreSendRequestBody,
   StoreSlotsQuery,
 } from './validators/catering-scheduling'
+import {
+  AdminDeliveryZoneBody,
+  AdminDeliveryZoneMatchQuery,
+  StoreDeliveryQuoteQuery,
+} from './validators/catering-delivery'
 import { AdminNotificationsQuery } from './validators/notifications'
 
 // Clarification: staging (and any non-`ALLOW_INDEXING=true` environment) is
@@ -97,6 +102,26 @@ export default defineMiddlewares({
       method: ['POST'],
       matcher: '/admin/catering/orders/:id/pickup-term',
       middlewares: [validateAndTransformBody(AdminRescheduleBody)],
+    },
+    {
+      method: ['GET'],
+      matcher: '/store/catering/delivery-quote',
+      middlewares: [validateAndTransformQuery(StoreDeliveryQuoteQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/delivery-zones',
+      middlewares: [validateAndTransformBody(AdminDeliveryZoneBody)],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/delivery-zones/:id',
+      middlewares: [validateAndTransformBody(AdminDeliveryZoneBody)],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/delivery-zones/match',
+      middlewares: [validateAndTransformQuery(AdminDeliveryZoneMatchQuery, {})],
     },
     {
       method: ['POST'],

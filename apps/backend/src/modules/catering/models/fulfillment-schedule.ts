@@ -2,10 +2,10 @@ import { model } from "@medusajs/framework/utils"
 
 /**
  * Fulfillment methods that have their own windows, lead time, horizon and
- * blocked dates. Only pickup at launch; delivery is added here later
- * (spec FR-011).
+ * blocked dates (004 FR-011): pickup at the venue and city delivery
+ * (specs/007-delivery-zones).
  */
-export const FULFILLMENT_METHODS = ["pickup"] as const
+export const FULFILLMENT_METHODS = ["pickup", "delivery"] as const
 
 export type FulfillmentMethod = (typeof FULFILLMENT_METHODS)[number]
 
@@ -26,6 +26,9 @@ const FulfillmentSchedule = model.define("fulfillment_schedule", {
   request_response_hours: model.number().default(24),
   // 1–168; default 24 — customer must pay within this time after confirmation
   request_payment_hours: model.number().default(24),
+  // ≥ 1 when set; null = no per-window limit. Pickup: null. Delivery
+  // default (setup): 2 — the venue's own driver (specs/007-delivery-zones)
+  max_orders_per_window: model.number().nullable(),
 })
 
 export default FulfillmentSchedule

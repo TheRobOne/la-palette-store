@@ -4,7 +4,7 @@ import seed from "../../src/scripts/seed"
 import { setupPickup } from "../../src/scripts/setup-pickup"
 import { addDays, warsawToday } from "../../src/modules/catering/scheduling/time"
 
-// Pickup-only fulfillment + minimum order value (contract: apps/backend/AGENTS.md
+// Pickup fulfillment + minimum order value (contract: apps/backend/AGENTS.md
 // → "Kontrakty dla storefrontu"). Sample product "test-mini-tarta-cytrynowa"
 // costs 12 zł gross: 1 piece = 12 zł (below 100 zł), 12 pieces = 144 zł.
 medusaIntegrationTestRunner({
@@ -58,8 +58,11 @@ medusaIntegrationTestRunner({
       const {
         data: { shipping_options },
       } = await api.get(`/store/shipping-options?cart_id=${cart.id}`, { headers })
-      expect(shipping_options).toHaveLength(1)
-      expect(shipping_options[0]).toEqual(
+      // pickup and, since spec 007, delivery — recognised by type.code
+      const pickup = shipping_options.find(
+        (o: { type: { code: string } }) => o.type.code === "pickup"
+      )
+      expect(pickup).toEqual(
         expect.objectContaining({
           name: "Odbiór osobisty",
           amount: 0,
@@ -69,7 +72,7 @@ medusaIntegrationTestRunner({
 
       await api.post(
         `/store/carts/${cart.id}/shipping-methods`,
-        { option_id: shipping_options[0].id },
+        { option_id: pickup.id },
         { headers }
       )
 
@@ -124,7 +127,7 @@ medusaIntegrationTestRunner({
                 phone: "+48 734 431 447",
               },
             },
-            delivery: { enabled: false },
+            delivery: { enabled: true, free_delivery_threshold: null },
           },
         })
       })
