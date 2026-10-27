@@ -128,6 +128,20 @@ claude mcp add --transport http medusa https://docs.medusajs.com/mcp # or agent 
 - **Business logic belongs in workflows**, not in route handlers. Routes resolve and run a workflow; workflows compose steps.
 - Adding a task to `turbo.json` requires declaring its `outputs`, or Turbo will cache nothing/the wrong thing.
 
+## Open business questions (manager)
+
+[`docs/do-omowienia-z-managerem.md`](docs/do-omowienia-z-managerem.md) lists everything that
+needs a decision or text approval from the manager (in Polish). **Update it as part of every
+feature or change you implement**, in the same commit/PR:
+
+- add each new open business question, assumption you had to make, or customer-facing text that
+  needs approval (quote the exact text and where it lives in the code);
+- when the user reports a decision, write it into the item's "Decyzja" and apply it in code or
+  the spec — remove the item once it is fully done;
+- keep the defaults tables in sync when you change a default value.
+
+The storefront (la-palette-garden) uses the same file — questions from storefront work go here too.
+
 ## Common Mistakes
 
 - Assuming a package manager instead of detecting it, or running a command that creates a second lockfile.

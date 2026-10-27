@@ -1,0 +1,105 @@
+# Do omówienia z managerem — sklep cateringowy
+
+Stan na 26.10.2026. Sprawy, które wymagają decyzji biznesowej albo akceptacji treści. Przy każdej
+jest miejsce na decyzję; po rozmowie wpisujemy ją tutaj i przenosimy do kodu lub specyfikacji.
+
+Plik jest aktualizowany przy każdej implementacji (zasada w `AGENTS.md`, „Open business
+questions”): nowe pytania dochodzą, a rozstrzygnięte i wdrożone znikają.
+
+## 1. Maile do klientów i obsługi (spec 006)
+
+### 1.1 Zwrot pieniędzy przy anulowaniu zamówienia przez obsługę
+
+Mail „Zamówienie nr … zostało anulowane” zawiera dziś zdanie:
+
+> Jeśli zamówienie było opłacone, zwrócimy pieniądze tą samą metodą płatności, najpóźniej
+> w ciągu 14 dni.
+
+Do ustalenia:
+
+- czy obiecujemy pełny zwrot zawsze, gdy anuluje restauracja (np. awaria, brak produktu)?
+- termin zwrotu: 14 dni czy szybciej? Kto i jak robi zwrot (panel płatności, przelew ręczny)?
+- czy mail ma podawać powód anulowania (np. pole „powód” wpisywane przez obsługę)?
+
+**Decyzja:** …
+
+### 1.2 Przegląd treści wszystkich maili
+
+Wszystkie teksty są po polsku i napisane przez nas — potrzebna akceptacja tonu i treści.
+Szczególnie:
+
+- **Potwierdzenie zamówienia** — to prawne potwierdzenie zawarcia umowy. Zawiera zdanie:
+  „Żywność przygotowywana na wskazany termin nie podlega zwrotowi (art. 38 pkt 4 ustawy
+  o prawach konsumenta).” Do potwierdzenia (najlepiej z prawnikiem) razem z regulaminem.
+- **Zapytania o termin**: przyjęte / potwierdzone (z linkiem do płatności) / odrzucone /
+  wygasło / anulowane za brak płatności.
+- **Zmiana terminu odbioru przez obsługę** — dziś: „Jeśli nowy termin Ci nie odpowiada, odpowiedz
+  na tę wiadomość albo zadzwoń.” Do ustalenia: co, jeśli klientowi nowy termin nie pasuje — czy
+  przysługuje anulowanie ze zwrotem?
+- **Przypomnienie dzień przed odbiorem** (wysyłane od 8:00) — czy ta godzina pasuje?
+
+**Decyzja:** …
+
+### 1.3 Nadawca i skrzynki
+
+- Nadawca maili: „La Palette Garden – Catering” `catering@lapalettegarden.pl`; odpowiedzi
+  klientów trafiają do skrzynki biuro@ (alias w Google Workspace). Czy nazwa nadawcy pasuje?
+- Kto czyta maile z `catering@`? Jedna osoba (alias) czy kilka (grupa Google — też darmowa)?
+- Adres, na który idą maile do obsługi (nowe zamówienie, nowe zapytanie, przypomnienie):
+  biuro@ czy catering@?
+- Przypomnienie dla obsługi o zapytaniu bez decyzji: domyślnie **4 h** przed wygaśnięciem — OK?
+
+**Decyzja:** …
+
+## 2. Warunki publikacji sklepu (blokują start)
+
+- **Katalog**: teksty, ceny i część zdjęć to dziś kopia z megustacatering.pl — potrzebne własne
+  opisy, ceny i zdjęcia La Palette.
+- **Alergeny**: informacja o alergenach musi być dostępna przed zakupem (rozporządzenie UE
+  1169/2011). Kto przygotuje listę alergenów dla każdego produktu?
+- **Regulamin sklepu**: dziś zaślepka z polami „[do uzupełnienia]” — potrzebna pełna treść
+  (sprzedawca, płatności, odbiór, reklamacje, brak prawa odstąpienia dla żywności na termin).
+- **Płatności**: dziś płatność testowa; do startu Przelewy24 — konto firmowe w P24 i dane
+  do integracji.
+- **Landing `/catering`**: opinie i statystyki to szablon — prawdziwe opinie/zdjęcia realizacji
+  albo usunięcie tych sekcji.
+
+**Decyzja / odpowiedzialni:** …
+
+## 3. Zasady przyjmowania zamówień (ustawiane w panelu, bez programisty)
+
+Obecne wartości domyślne — do potwierdzenia:
+
+| Ustawienie | Dziś | Decyzja |
+|---|---|---|
+| Minimalna wartość zamówienia | 100 zł | … |
+| Dzienny limit zamówień kuchni | 10 | … |
+| Wymagane wyprzedzenie zamówienia | 48 h | … |
+| Jak daleko w przód można zamawiać | 60 dni | … |
+| Okna odbioru | wt.–niedz., co godzinę 10:00–18:00 | … |
+| Poniedziałki | zamknięte | otworzyć? standardowo czy „na zapytanie”? |
+
+### Terminy „na zapytanie” (np. dni, w które kuchnia normalnie nie pracuje)
+
+| Ustawienie | Dziś | Decyzja |
+|---|---|---|
+| Które dni/okna są „na zapytanie” | żadne | … |
+| Wyprzedzenie dla zapytań | 72 h | … |
+| Czas kuchni na odpowiedź | 24 h | … |
+| Czas klienta na płatność po potwierdzeniu | 24 h | … |
+
+### Zablokowane dni i okresy
+
+Obsługa może zablokować pojedynczy dzień albo cały okres (np. cały maj) w Ustawienia →
+Harmonogram odbiorów. Istniejące zamówienia zostają bez zmian. Czy są już znane terminy do
+zablokowania (wesela, urlopy, święta)?
+
+**Decyzja:** …
+
+## 4. Na później (bez pilności)
+
+- **Konta klientów** (historia zamówień, ponowne zamówienie, zapamiętane dane do faktury) —
+  proponujemy dopiero po starcie, gdy pojawią się stali klienci firmowi. Czy są tacy już teraz?
+- **Dostawa** zamiast samego odbioru osobistego — strefy i ceny dowozu, jeśli ma wejść.
+
+**Decyzja:** …
