@@ -1,42 +1,27 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 2.3.0 → 2.4.0
-Bump rationale: MINOR — city delivery moves from "deferred" to offered at launch (decision
-2026-10-27), with new binding rules on zones, costs and out-of-zone addresses. No principle is
-removed or redefined; pickup rules are unchanged.
+Version change: 2.4.0 → 2.4.1
+Bump rationale: PATCH — wording of how delivery zones are implemented; the rules (delivery at
+launch, zones by postal code, prices in the Admin, pickup unchanged, no distance pricing) are
+unchanged.
 
 Modified principles:
-- II. Event-Catering Ordering UX — launch offers pickup OR delivery; zones by Polish postal
-  codes, zones/codes/prices editable in the Admin; date/slot and address collected per
-  method; zone and cost validated before payment and shown in the cart; out-of-zone address
-  goes through on-request terms (staff set the delivery cost when confirming); on-request
-  windows extended to delivery windows.
-- IV. Food & Consumer-Law Transparency — delivery cost always disclosed before the order
-  (before payment for on-request delivery).
-- VI. Tested Critical Commerce Paths — tests for zone matching, delivery cost and the
-  checkout-to-order flow for both methods.
-- VIII. Backend as Source of Truth — delivery zones and costs are unconditional order rules.
+- II. Event-Catering Ordering UX — zones are lists of full postal codes (XX-XXX), no partial
+  codes.
 
 Changed sections:
-- Technology Stack & Constraints → Fulfillment: delivery as a separate shipping fulfillment
-  set with zip geo zones and one priced shipping option per zone; distance-based pricing out
-  of scope unless justified under Principle VII.
+- Technology Stack & Constraints → Fulfillment: price from our postal-code zones in the catering
+  module instead of Medusa `zip` geo zones with one option per zone (they also compare the city
+  by equality — specs/007-delivery-zones research R-01).
 
 Added sections: none
 Removed sections: none
+Follow-up TODOs: none.
 
-Follow-up TODOs: none (zone list, prices, delivery windows and thresholds are Admin data,
-to be supplied by the manager).
-
-Documents requiring updates (not changed by this amendment):
-- ⚠ specs/004-pickup-scheduling/spec.md — "Delivery is not offered at launch (constitution
-  2.2.0)" is superseded; delivery windows/lead time per method come in the delivery spec.
-- ⚠ specs/005-on-request-terms — on-request path to cover delivery windows and out-of-zone
-  addresses with a staff-set delivery cost.
-- ⚠ docs/do-omowienia-z-managerem.md — delivery item: zones, prices, delivery windows,
-  minimum order / free-delivery thresholds, who delivers.
-- ⚠ la-palette-garden checkout — delivery option, address, cost in the cart.
+Documents requiring updates:
+- ✅ specs/007-delivery-zones/* — already written against this wording.
+- ⚠ apps/backend/AGENTS.md "Fulfillment" — updated with the 007 implementation.
 - ✅ .specify/templates/* — read principles at runtime; no change needed.
 -->
 
@@ -73,9 +58,9 @@ business requirement, even though its code lives outside this repository:
   and sets priced per piece, per portion or per person, clearly labelled.
 - At launch the customer chooses between two fulfillment methods in a dedicated
   "fulfillment method" step of checkout: in-person pickup at the La Palette Garden venue, or
-  city delivery to an address in a delivery zone. Delivery zones are defined by Polish postal
-  codes; zones, their postal codes and delivery prices MUST be editable by staff in the Admin
-  without a deploy.
+  city delivery to an address in a delivery zone. Delivery zones are lists of full Polish
+  postal codes (XX-XXX); zones, their postal codes and delivery prices MUST be editable by
+  staff in the Admin without a deploy.
 - Checkout MUST collect the event date and time slot for the chosen method (pickup window or
   delivery window) and, for delivery, the delivery address; the backend MUST enforce the
   minimum order lead time, blocked dates and daily capacity limits per method
@@ -246,9 +231,11 @@ contracts keep two repositories in sync.
   calendar, capacity, minimum order value, invoice data, allergen data) rather than a separate
   admin app.
 - **Fulfillment**: in-person pickup at the venue through Medusa's native pickup fulfillment
-  set, and city delivery through a separate shipping fulfillment set whose service zones use
-  postal-code (`zip`) geo zones, with one priced shipping option per zone. Delivery MUST NOT
-  change the pickup setup. Distance-based pricing (geocoding, map APIs) is out of scope
+  set, and city delivery through a separate shipping fulfillment set whose price comes from
+  delivery zones defined as lists of full Polish postal codes (XX-XXX), kept in the catering
+  module and editable in the Admin (Medusa `zip` geo zones also require an exact city match,
+  which fails for villages sharing a postal code — specs/007-delivery-zones research R-01).
+  Delivery MUST NOT change the pickup setup. Distance-based pricing (geocoding, map APIs) is out of scope
   unless justified under Principle VII.
 - **Payments**: the primary payment provider is Przelewy24 (BLIK, fast bank transfers, cards),
   integrated as a Medusa payment provider module with webhook-based payment confirmation.
@@ -312,4 +299,4 @@ contracts keep two repositories in sync.
   AGENTS.md MUST reference this constitution rather than restate it.
 - Compliance is reviewed at each Medusa upgrade and at least once per quarter.
 
-**Version**: 2.4.0 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-27
+**Version**: 2.4.1 | **Ratified**: 2026-09-28 | **Last Amended**: 2026-10-27
