@@ -112,13 +112,13 @@ capturing test provider instead of Resend.
 
 ### Tests for User Story 4
 
-- [ ] T023 [US4] Add to `notifications.spec.ts`: rescheduling an order (`/admin/catering/orders/:id/pickup-term`) and a request (`/admin/catering/requests/:id/pickup-term`) sends `pickup-rescheduled` with old and new term; a second reschedule sends a second e-mail; cancelling an order sends `order-canceled`
+- [X] T023 [US4] Add to `notifications.spec.ts`: rescheduling an order (`/admin/catering/orders/:id/pickup-term`) and a request (`/admin/catering/requests/:id/pickup-term`) sends `pickup-rescheduled` with old and new term; a second reschedule sends a second e-mail; cancelling an order sends `order-canceled`
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] Emit `catering.pickup.rescheduled` (data-model "Event") at the end of `apps/backend/src/workflows/reschedule-order-pickup.ts` (after the step succeeds; add the name to `src/lib/request-events.ts` or a new events file)
-- [ ] T025 [P] [US4] Templates `pickup-rescheduled`, `order-canceled` + unit test
-- [ ] T026 [US4] Subscribers `apps/backend/src/subscribers/email-pickup-rescheduled.ts` (key `pickup-rescheduled:<booking_id>:<rescheduled_at>`, resource order or request) and `apps/backend/src/subscribers/email-order-canceled.ts` (key `order-canceled:<order_id>`)
+- [X] T024 [US4] Emit `catering.pickup.rescheduled` (data-model "Event") at the end of `apps/backend/src/workflows/reschedule-order-pickup.ts` (after the step succeeds; add the name to `src/lib/request-events.ts` or a new events file)
+- [X] T025 [P] [US4] Templates `pickup-rescheduled`, `order-canceled` + unit test — in `templates/pickup.ts` (also `pickup-reminder`, T029); the refund sentence of `order-canceled` is to be confirmed with the manager (T040)
+- [X] T026 [US4] Subscribers `apps/backend/src/subscribers/email-pickup-rescheduled.ts` (key `pickup-rescheduled:<booking_id>:<rescheduled_at>`, resource order or request) and `apps/backend/src/subscribers/email-order-canceled.ts` (key `order-canceled:<order_id>`)
 
 ---
 
@@ -130,25 +130,25 @@ capturing test provider instead of Resend.
 
 ### Tests for User Story 5
 
-- [ ] T027 [US5] Unit tests `apps/backend/src/lib/emails/__tests__/pickup-reminders.unit.spec.ts` for the pure selection `selectPickupReminders(bookings, orders, now)`: before 08:00 Warsaw → none; tomorrow's active booking with order placed ≥ 24 h before the window → selected; placed < 24 h before → not; cancelled/rescheduled to a later day → not for the old date
-- [ ] T028 [US5] Add to `notifications.spec.ts`: running the job handler twice for an eligible order sends one `pickup-reminder`
+- [X] T027 [US5] Unit tests `apps/backend/src/lib/emails/__tests__/pickup-reminders.unit.spec.ts` for the pure selection `selectPickupReminders(bookings, orders, now)`: before 08:00 Warsaw → none; tomorrow's active booking with order placed ≥ 24 h before the window → selected; placed < 24 h before → not; cancelled/rescheduled to a later day → not for the old date — `src/lib/emails/__tests__/pickup-reminders.unit.spec.ts`; the reschedule-to-another-day case is covered by the key per order and date
+- [X] T028 [US5] Add to `notifications.spec.ts`: running the job handler twice for an eligible order sends one `pickup-reminder`
 
 ### Implementation for User Story 5
 
-- [ ] T029 [P] [US5] Template `pickup-reminder` (with a map link to the pickup address)
-- [ ] T030 [US5] Selection in `apps/backend/src/lib/emails/pickup-reminders.ts` and job `apps/backend/src/jobs/send-pickup-reminders.ts` (`5 * * * *`, key `pickup-reminder:<order_id>:<date>`)
+- [X] T029 [P] [US5] Template `pickup-reminder` (with a map link to the pickup address)
+- [X] T030 [US5] Selection in `apps/backend/src/lib/emails/pickup-reminders.ts` and job `apps/backend/src/jobs/send-pickup-reminders.ts` (`5 * * * *`, key `pickup-reminder:<order_id>:<date>`)
 
 ---
 
 ## Phase 8: History, retries and polish
 
 - [X] T031 Retry job `apps/backend/src/jobs/retry-failed-notifications.ts` (`*/15 * * * *`, research R-06 incl. the T001 decision; max 5 attempts in `data._attempts`) + integration test: provider fails, then recovers → the notification ends `success` — unit-tested; updates the failed row itself (research R-11); integration test of a real provider failure not added (no fault injection in the test app)
-- [ ] T032 Admin route `apps/backend/src/api/admin/catering/notifications/route.ts` per [contracts/admin-api.md](contracts/admin-api.md) (validator in `src/api/validators/`, registered in `src/api/middlewares.ts`) + integration test
-- [ ] T033 [P] Admin widget `apps/backend/src/admin/widgets/order-emails.tsx` (zone `order.details.side.after`): template label, recipient, time, status badge, attempts
-- [ ] T034 [P] E-mail status per request in `apps/backend/src/admin/routes/pickup-requests/page.tsx` (last e-mail + failure badge)
+- [X] T032 Admin route `apps/backend/src/api/admin/catering/notifications/route.ts` per [contracts/admin-api.md](contracts/admin-api.md) (validator in `src/api/validators/`, registered in `src/api/middlewares.ts`) + integration test — accepts comma-separated ids (the "Zapytania" page loads all rows in one call); an order also lists the e-mails of the request it was paid from
+- [X] T033 [P] Admin widget `apps/backend/src/admin/widgets/order-emails.tsx` (zone `order.details.side.after`): template label, recipient, time, status badge, attempts
+- [X] T034 [P] E-mail status per request in `apps/backend/src/admin/routes/pickup-requests/page.tsx` (last e-mail + failure badge) — "Ostatni mail do klienta" + a red badge when any customer e-mail failed
 - [X] T035 [P] Docs: `apps/backend/AGENTS.md` section "E-maile transakcyjne" (templates, triggers, keys, env, allow-list, how to add a template); README "Environments" — new staging variables; `.env.template`
 - [X] T036 Run `pnpm run lint`, `pnpm run typecheck`, `npx tsc --noEmit -p src/admin/tsconfig.json`, `pnpm run test:unit` in `apps/backend`
-- [X] T037 Run `pnpm run test:integration:http -- integration-tests/http/notifications.spec.ts integration-tests/http/pickup-requests.spec.ts integration-tests/http/pickup-scheduling.spec.ts integration-tests/http/pickup-order-rules.spec.ts` (local PostgreSQL) and record results here (constitution VI) — 2026-10-26, local PostgreSQL 16: notifications **6/6**, pickup-requests **18/18**, pickup-scheduling **15/15**, pickup-order-rules **6/6** (45/45); unit 210/210; lint, both typechecks and `pnpm build` clean
+- [X] T037 Run `pnpm run test:integration:http -- integration-tests/http/notifications.spec.ts integration-tests/http/pickup-requests.spec.ts integration-tests/http/pickup-scheduling.spec.ts integration-tests/http/pickup-order-rules.spec.ts` (local PostgreSQL) and record results here (constitution VI) — 2026-10-26, local PostgreSQL 16: notifications **6/6**, pickup-requests **18/18**, pickup-scheduling **15/15**, pickup-order-rules **6/6** (45/45); unit 210/210; lint, both typechecks and `pnpm build` clean; after US4, US5 and the history (2026-10-26): notifications **10/10**, pickup-requests 18/18, pickup-scheduling 15/15, pickup-order-rules 6/6 (49/49), unit 216/216
 
 ## Phase 9: Go-live (needs the domain owner and Railway access)
 

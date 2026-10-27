@@ -16,6 +16,7 @@ import {
   StoreSendRequestBody,
   StoreSlotsQuery,
 } from './validators/catering-scheduling'
+import { AdminNotificationsQuery } from './validators/notifications'
 
 // Clarification: staging (and any non-`ALLOW_INDEXING=true` environment) is
 // public but must not be indexed by search engines — including /app (Admin).
@@ -76,6 +77,11 @@ export default defineMiddlewares({
       method: ['GET'],
       matcher: '/admin/catering/calendar',
       middlewares: [validateAndTransformQuery(DateRangeQuery, {})],
+    },
+    {
+      method: ['GET'],
+      matcher: '/admin/catering/notifications',
+      middlewares: [validateAndTransformQuery(AdminNotificationsQuery, {})],
     },
     {
       method: ['GET'],

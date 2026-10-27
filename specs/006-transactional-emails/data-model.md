@@ -34,14 +34,15 @@ Rules:
 ## Event (new): `catering.pickup.rescheduled`
 
 Emitted by `reschedule-order-pickup.ts` after a successful reschedule of an order or a request:
-`{ id: booking_id, cart_id, order_id | null, previous: { date, start, end } }`.
+`{ id: booking_id, cart_id, order_id | null, previous: { date, start, end }, rescheduled_at }`
+(ISO; part of the e-mail idempotency key, so each move sends one e-mail).
 
 ## Environment variables (new)
 
 | Variable | Where | Purpose |
 |---|---|---|
 | `RESEND_API_KEY` | staging, production | without it e-mails are only logged |
-| `EMAIL_FROM` | all | e.g. `La Palette Garden <zamowienia@lapalettegarden.pl>` |
-| `EMAIL_REPLY_TO` | all | kitchen contact address |
+| `EMAIL_FROM` | all | e.g. `La Palette Garden – Catering <catering@lapalettegarden.pl>` |
+| `EMAIL_REPLY_TO` | all | `catering@lapalettegarden.pl` (Workspace alias, research R-10) |
 | `STOREFRONT_URL` | all | e.g. `https://lapalettegarden.pl` — base of customer links |
 | `NOTIFICATION_ALLOWLIST` | non-production | comma-separated addresses or `@domain`s that may receive e-mails |

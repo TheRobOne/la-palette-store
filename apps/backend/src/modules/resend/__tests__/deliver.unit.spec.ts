@@ -23,7 +23,7 @@ const fakeClient = (result: { data: { id: string } | null; error: { message: str
 
 const options = (overrides = {}) => ({
   api_key: "re_test",
-  from: "La Palette Garden <zamowienia@lapalettegarden.pl>",
+  from: "La Palette Garden – Catering <catering@lapalettegarden.pl>",
   reply_to: "kontakt@lapalettegarden.pl",
   app_env: "staging",
   allowlist: ["team@example.com", "@lapalettegarden.pl"],
@@ -59,7 +59,7 @@ describe("Resend delivery (unit)", () => {
     expect(result).toEqual({ id: "re_123" })
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: "La Palette Garden <zamowienia@lapalettegarden.pl>",
+        from: "La Palette Garden – Catering <catering@lapalettegarden.pl>",
         to: "klient@example.com",
         replyTo: "kontakt@lapalettegarden.pl",
         subject: "Potwierdzenie zamówienia nr 1",
@@ -86,7 +86,7 @@ describe("Resend delivery (unit)", () => {
       } as NodeJS.ProcessEnv)
     ).toEqual({
       api_key: undefined,
-      from: "La Palette Garden <zamowienia@lapalettegarden.pl>",
+      from: "La Palette Garden – Catering <catering@lapalettegarden.pl>",
       reply_to: undefined,
       app_env: "staging",
       allowlist: ["a@x.pl", "@y.pl"],

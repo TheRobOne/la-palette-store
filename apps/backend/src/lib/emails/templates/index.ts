@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import type { OrderEmailData, RenderedEmail, RequestEmailData } from "../types"
 import { orderConfirmation, staffNewOrder } from "./order"
+import { orderCanceled, pickupReminder, pickupRescheduled } from "./pickup"
 import {
   requestCanceled,
   requestConfirmed,
@@ -25,6 +26,9 @@ export const TEMPLATES = {
   "request-canceled": requestCanceled,
   "staff-new-request": staffNewRequest,
   "staff-request-reminder": staffRequestReminder,
+  "pickup-rescheduled": pickupRescheduled,
+  "order-canceled": orderCanceled,
+  "pickup-reminder": pickupReminder,
 } as const satisfies Record<string, (data: never) => RenderedEmail>
 
 export type TemplateName = keyof typeof TEMPLATES
