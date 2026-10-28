@@ -41,7 +41,9 @@ export async function POST(
     if (warnings.length) {
       res.status(409).json({
         type: "conflict",
-        message: "Nowy termin łamie reguły odbioru. Potwierdź, aby zapisać mimo to.",
+        message: `Nowy termin łamie reguły ${
+          booking.fulfillment_method === "delivery" ? "dostawy" : "odbioru"
+        }. Potwierdź, aby zapisać mimo to.`,
         warnings,
       })
       return

@@ -20,6 +20,8 @@ export async function loadScheduleDto(container: MedusaContainer, method: Fulfil
     request_response_hours: schedule?.request_response_hours ?? 24,
     request_payment_hours: schedule?.request_payment_hours ?? 24,
     booking_horizon_days: schedule?.booking_horizon_days ?? 60,
+    // delivery only (spec 007); always null for pickup
+    max_orders_per_window: method === "delivery" ? (schedule?.max_orders_per_window ?? null) : null,
     daily_capacity: settings?.daily_capacity ?? 0,
     windows: windows
       .map((w) => ({

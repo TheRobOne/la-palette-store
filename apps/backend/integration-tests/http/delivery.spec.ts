@@ -370,6 +370,159 @@ medusaIntegrationTestRunner({
         expect(order.data.order.shipping_total).toEqual(30)
       })
     })
+
+    describe("US4 — delivery has its own schedule", () => {
+      type Window = { start: string; end: string; available: boolean; reason: string | null }
+      const dayOf = async (method: "pickup" | "delivery", date: string) => {
+        const {
+          data: { slots },
+        } = await api.get(`/store/catering/slots?from=${date}&to=${date}&method=${method}`, { headers })
+        return slots.days[0] as { available: boolean; reason: string | null; windows: Window[] }
+      }
+      const windowOf = async (term: { date: string; start: string }) =>
+        (await dayOf("delivery", term.date)).windows.find((w) => w.start === term.start)!
+
+      it("fills a window at the driver's maximum and keeps pickup open", async () => {
+        const term = await firstWindow("delivery")
+        for (let i = 0; i < 2; i++) {
+          const cartId = await createDeliveryCart()
+          await pay(cartId)
+          expect((await complete(cartId)).data.type).toEqual("order")
+        }
+
+        expect(await windowOf(term)).toEqual(
+          expect.objectContaining({ available: false, reason: "window_full" })
+        )
+        const day = await dayOf("delivery", term.date)
+        expect(day.windows.filter((w) => w.start !== term.start).some((w) => w.available)).toBe(true)
+        expect((await dayOf("pickup", term.date)).available).toBe(true)
+      })
+
+      it("lets exactly one of two parallel completions take the last place (SC-007)", async () => {
+        const [first, a, b] = [await createDeliveryCart(), await createDeliveryCart(), await createDeliveryCart()]
+        await pay(first)
+        expect((await complete(first)).data.type).toEqual("order")
+        await pay(a)
+        await pay(b)
+
+        const results = await Promise.all([complete(a), complete(b)])
+        const orders = results.filter((r) => r.data.type === "order")
+        const refused = results.filter((r) => r.status === 400)
+        expect(orders).toHaveLength(1)
+        expect(refused).toHaveLength(1)
+        expect(refused[0].data.message).toMatch(/^Wybrany termin dostawy .* nie jest już dostępny/)
+      })
+
+      it("counts open requests against the window", async () => {
+        const term = await firstWindow("delivery")
+        for (const status of ["requested", "confirmed"] as const) {
+          await catering().createBookings({
+            cart_id: `cart_${status}`,
+            fulfillment_method: "delivery",
+            date: term.date,
+            start_time: term.start,
+            end_time: term.end,
+            status,
+            requires_confirmation: true,
+          })
+        }
+        expect((await windowOf(term)).reason).toEqual("window_full")
+      })
+
+      it("blocks a date for deliveries only", async () => {
+        const term = await firstWindow("delivery")
+        await api.post(
+          "/admin/catering/blocked-dates",
+          { date: term.date, method: "delivery", reason: "Kierowca na urlopie" },
+          { headers: await adminHeaders() }
+        )
+        expect((await dayOf("delivery", term.date)).reason).toEqual("blocked")
+        expect((await dayOf("pickup", term.date)).available).toBe(true)
+      })
+
+      it("reads and writes the per-window maximum for delivery only", async () => {
+        const auth = await adminHeaders()
+        const get = async (method: string) =>
+          (await api.get(`/admin/catering/schedule?method=${method}`, { headers: auth })).data.schedule
+
+        const delivery = await get("delivery")
+        expect(delivery.max_orders_per_window).toEqual(2)
+        expect((await get("pickup")).max_orders_per_window).toBeNull()
+
+        const { method: _d, ...deliveryBody } = delivery
+        const saved = await api.post(
+          "/admin/catering/schedule?method=delivery",
+          { ...deliveryBody, max_orders_per_window: 3 },
+          { headers: auth }
+        )
+        expect(saved.data.schedule.max_orders_per_window).toEqual(3)
+
+        const { method: _p, ...pickupBody } = await get("pickup")
+        const refused = await api
+          .post("/admin/catering/schedule?method=pickup", { ...pickupBody, max_orders_per_window: 2 }, { headers: auth })
+          .catch(asResponse)
+        expect(refused.status).toEqual(400)
+        expect(refused.data.message).toEqual("Limit zamówień w jednym oknie dotyczy tylko dostaw.")
+
+        const noLimit = await api.post(
+          "/admin/catering/schedule?method=delivery",
+          { ...deliveryBody, max_orders_per_window: null },
+          { headers: auth }
+        )
+        expect(noLimit.data.schedule.max_orders_per_window).toBeNull()
+      })
+
+      it("warns about a full window when staff move a delivery order", async () => {
+        const term = await firstWindow("delivery")
+        const orderIds: string[] = []
+        for (let i = 0; i < 2; i++) {
+          const cartId = await createDeliveryCart()
+          await pay(cartId)
+          orderIds.push((await complete(cartId)).data.order.id)
+        }
+        // a third order in another window, moved into the full one
+        const other = (await dayOf("delivery", term.date)).windows.find((w) => w.available)!
+        const cartId = await createCart()
+        await api.post(`/store/carts/${cartId}`, { shipping_address: address("31-763") }, { headers })
+        const option = await optionFor(cartId, "delivery")
+        await api.post(`/store/carts/${cartId}/shipping-methods`, { option_id: option.id }, { headers })
+        await api.post(
+          `/store/carts/${cartId}`,
+          { metadata: { catering_term: { method: "delivery", date: term.date, start: other.start, end: other.end } } },
+          { headers }
+        )
+        await pay(cartId)
+        const third = (await complete(cartId)).data.order.id
+
+        const auth = await adminHeaders()
+        const move = (confirm: boolean) =>
+          api
+            .post(
+              `/admin/catering/orders/${third}/pickup-term`,
+              { date: term.date, start: term.start, end: term.end, confirm },
+              { headers: auth }
+            )
+            .catch(asResponse)
+        const warned = await move(false)
+        expect(warned.status).toEqual(409)
+        expect(warned.data).toEqual(
+          expect.objectContaining({
+            message: "Nowy termin łamie reguły dostawy. Potwierdź, aby zapisać mimo to.",
+            warnings: ["window_full"],
+          })
+        )
+        // an order already in the full window does not count itself
+        const own = await api
+          .post(
+            `/admin/catering/orders/${orderIds[0]}/pickup-term`,
+            { date: term.date, start: term.start, end: term.end },
+            { headers: auth }
+          )
+          .catch(asResponse)
+        expect(own.status).toEqual(200)
+        expect((await move(true)).status).toEqual(200)
+      })
+    })
   },
 })
 

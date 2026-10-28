@@ -10,6 +10,8 @@ export type ScheduleInput = {
   request_lead_time_hours?: number
   request_response_hours?: number
   request_payment_hours?: number
+  // delivery only (spec 007): most deliveries in one window; null = no limit, omitted = keep
+  max_orders_per_window?: number | null
   windows: { weekday: number; start: string; end: string; requires_confirmation?: boolean }[]
 }
 
@@ -21,7 +23,7 @@ const WEEKDAY_NAMES = ["", "pon.", "wt.", "śr.", "czw.", "pt.", "sob.", "niedz.
  * duplicate windows on the same weekday. Throws `invalid_data` with a
  * Polish message shown in the Admin.
  */
-export function assertValidSchedule(input: ScheduleInput): void {
+export function assertValidSchedule(input: ScheduleInput, method: string = "pickup"): void {
   const fail = (message: string): never => {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, message)
   }
@@ -52,6 +54,16 @@ export function assertValidSchedule(input: ScheduleInput): void {
   ] as const) {
     if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 168)) {
       fail(`${label} musi wynosić od 1 do 168 godzin.`)
+    }
+  }
+
+  const maxPerWindow = input.max_orders_per_window
+  if (maxPerWindow !== undefined && maxPerWindow !== null) {
+    if (method !== "delivery") {
+      fail("Limit zamówień w jednym oknie dotyczy tylko dostaw.")
+    }
+    if (!Number.isInteger(maxPerWindow) || maxPerWindow < 1) {
+      fail("Maks. dostaw w jednym oknie musi być liczbą całkowitą ≥ 1 albo puste (bez limitu).")
     }
   }
 

@@ -18,18 +18,47 @@ import {
   AdminApiError,
   addDaysIso,
   type BlockedDateDto,
+  type FulfillmentMethod,
   formatPlDate,
   type Schedule,
   todayIso,
   WEEKDAYS,
 } from "../../../lib/catering-api"
 
+const METHOD_TEXT: Record<
+  FulfillmentMethod,
+  { title: string; intro: string; enabled: string; windows: string; saved: string }
+> = {
+  pickup: {
+    title: "Harmonogram odbiorów",
+    intro: "Godziny, w których klienci mogą odebrać zamówienie, i dzienny limit kuchni.",
+    enabled: "Odbiory włączone",
+    windows: "Okna odbioru",
+    saved: "Zapisano harmonogram odbiorów",
+  },
+  delivery: {
+    title: "Harmonogram dostaw",
+    intro:
+      "Okna dostawy, wyprzedzenie i limit kierowcy. Dzienny limit kuchni jest wspólny dla odbiorów i dostaw.",
+    enabled: "Dostawy włączone",
+    windows: "Okna dostawy",
+    saved: "Zapisano harmonogram dostaw",
+  },
+}
+
+const BLOCK_SCOPE_LABEL: Record<string, string> = {
+  pickup: " (tylko odbiory)",
+  delivery: " (tylko dostawy)",
+}
+
 /**
- * Settings → "Harmonogram odbiorów": weekly pickup windows, lead time,
- * booking horizon, daily capacity and blocked dates
- * (specs/004-pickup-scheduling US3).
+ * Settings → "Harmonogram": weekly windows, lead time, booking horizon,
+ * daily capacity and blocked dates (specs/004-pickup-scheduling US3), per
+ * method — pickup or delivery with its per-window driver limit
+ * (specs/007-delivery-zones US4).
  */
 const PickupSchedulePage = () => {
+  const [method, setMethod] = useState<FulfillmentMethod>("pickup")
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [blocked, setBlocked] = useState<BlockedDateDto[]>([])
   const [saving, setSaving] = useState(false)
@@ -40,7 +69,7 @@ const PickupSchedulePage = () => {
   const load = useCallback(async () => {
     try {
       const [{ schedule }, { blocked_dates }] = await Promise.all([
-        adminFetch<{ schedule: Schedule }>("/admin/catering/schedule?method=pickup"),
+        adminFetch<{ schedule: Schedule }>(`/admin/catering/schedule?method=${method}`),
         adminFetch<{ blocked_dates: BlockedDateDto[] }>(
           `/admin/catering/blocked-dates?from=${todayIso()}&to=${addDaysIso(todayIso(), 365)}`
         ),
@@ -50,13 +79,13 @@ const PickupSchedulePage = () => {
     } catch (e) {
       toast.error("Nie udało się wczytać harmonogramu", { description: String(e) })
     }
-  }, [])
+  }, [method])
 
   useEffect(() => {
     load()
   }, [load])
 
-  if (!schedule) {
+  if (!schedule || schedule.method !== method) {
     return (
       <Container>
         <Text>Wczytywanie…</Text>
@@ -64,6 +93,7 @@ const PickupSchedulePage = () => {
     )
   }
 
+  const text = METHOD_TEXT[method]
   const update = (patch: Partial<Schedule>) => setSchedule({ ...schedule, ...patch })
 
   const setWindow = (index: number, patch: Partial<Schedule["windows"][number]>) =>
@@ -74,13 +104,14 @@ const PickupSchedulePage = () => {
   const save = async () => {
     setSaving(true)
     try {
-      const { method: _method, ...body } = schedule
+      const { method: _method, max_orders_per_window, ...rest } = schedule
+      const body = method === "delivery" ? { ...rest, max_orders_per_window } : rest
       const result = await adminFetch<{ schedule: Schedule }>(
-        "/admin/catering/schedule?method=pickup",
+        `/admin/catering/schedule?method=${method}`,
         { method: "POST", body }
       )
       setSchedule(result.schedule)
-      toast.success("Zapisano harmonogram odbiorów")
+      toast.success(text.saved)
     } catch (e) {
       toast.error("Nie udało się zapisać", {
         description: e instanceof AdminApiError ? e.message : String(e),
@@ -105,7 +136,7 @@ const PickupSchedulePage = () => {
         method: "POST",
         body: {
           ...(isPeriod ? { from: newBlock.from, to: newBlock.to } : { date: newBlock.from }),
-          method: newBlock.scope === "pickup" ? "pickup" : null,
+          method: newBlock.scope === "all" ? null : newBlock.scope,
           reason: newBlock.reason || null,
         },
       })
@@ -146,24 +177,41 @@ const PickupSchedulePage = () => {
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <Heading level="h1">Harmonogram odbiorów</Heading>
+            <Heading level="h1">{text.title}</Heading>
             <Text size="small" className="text-ui-fg-subtle">
-              Godziny, w których klienci mogą odebrać zamówienie, i dzienny limit kuchni.
+              {text.intro}
             </Text>
           </div>
-          <Button size="small" onClick={save} isLoading={saving}>
-            Zapisz
-          </Button>
+          <div className="flex items-center gap-x-2">
+            <div className="w-36">
+              <Select
+                size="small"
+                value={method}
+                onValueChange={(value) => setMethod(value as FulfillmentMethod)}
+              >
+                <Select.Trigger aria-label="Sposób">
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="pickup">Odbiór</Select.Item>
+                  <Select.Item value="delivery">Dostawa</Select.Item>
+                </Select.Content>
+              </Select>
+            </div>
+            <Button size="small" onClick={save} isLoading={saving}>
+              Zapisz
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 px-6 py-4 md:grid-cols-4">
           <div className="flex items-center gap-x-2">
             <Switch
-              id="pickup-enabled"
+              id="method-enabled"
               checked={schedule.is_enabled}
               onCheckedChange={(checked) => update({ is_enabled: checked })}
             />
-            <Label htmlFor="pickup-enabled">Odbiory włączone</Label>
+            <Label htmlFor="method-enabled">{text.enabled}</Label>
           </div>
           <NumberField
             id="daily-capacity"
@@ -183,6 +231,31 @@ const PickupSchedulePage = () => {
             value={schedule.booking_horizon_days}
             onChange={(booking_horizon_days) => update({ booking_horizon_days })}
           />
+          {method === "delivery" && (
+            <div className="flex flex-col gap-y-1">
+              <Label htmlFor="max-per-window" size="small">
+                Maks. dostaw w jednym oknie
+              </Label>
+              <Input
+                id="max-per-window"
+                type="number"
+                size="small"
+                min={1}
+                placeholder="bez limitu"
+                value={
+                  schedule.max_orders_per_window === null
+                    ? ""
+                    : String(schedule.max_orders_per_window)
+                }
+                onChange={(e) =>
+                  update({
+                    max_orders_per_window:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-y-2 px-6 py-4">
@@ -215,7 +288,7 @@ const PickupSchedulePage = () => {
         </div>
 
         <div className="flex flex-col gap-y-4 px-6 py-4">
-          <Heading level="h2">Okna odbioru</Heading>
+          <Heading level="h2">{text.windows}</Heading>
           {WEEKDAYS.map((weekday) => (
             <div key={weekday.value} className="flex flex-col gap-y-2">
               <div className="flex items-center gap-x-3">
@@ -364,8 +437,9 @@ const PickupSchedulePage = () => {
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="all">Cała kuchnia</Select.Item>
+                <Select.Item value="all">Wszystko</Select.Item>
                 <Select.Item value="pickup">Tylko odbiory</Select.Item>
+                <Select.Item value="delivery">Tylko dostawy</Select.Item>
               </Select.Content>
             </Select>
           </div>
@@ -391,7 +465,7 @@ const PickupSchedulePage = () => {
                     ? `${formatPlDate(b.from)}–${formatPlDate(b.to)} (${b.days} dni)`
                     : formatPlDate(b.from)}
                   {b.reason ? ` — ${b.reason}` : ""}
-                  {b.method ? " (tylko odbiory)" : ""}
+                  {b.method ? (BLOCK_SCOPE_LABEL[b.method] ?? "") : ""}
                 </Text>
                 <Button size="small" variant="transparent" onClick={() => removeBlock(b)}>
                   {b.period_id ? "Odblokuj okres" : "Odblokuj"}
@@ -466,7 +540,7 @@ const NumberField = ({
 )
 
 export const config = defineRouteConfig({
-  label: "Harmonogram odbiorów",
+  label: "Harmonogram odbiorów i dostaw",
 })
 
 export default PickupSchedulePage

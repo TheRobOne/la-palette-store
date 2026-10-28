@@ -2,6 +2,7 @@ import {
   checkTerm,
   computeAvailability,
   termRequiresConfirmation,
+  windowKey,
   type ScheduleInputs,
 } from "../availability"
 
@@ -207,6 +208,7 @@ describe("on-request windows (unit, no database)", () => {
       end: "11:00",
       available: false,
       requires_confirmation: true,
+      reason: "lead_time",
     })
     expect(day.reason).toEqual("lead_time")
     // Monday 2026-10-26 10:00 is 145 h ahead → fine
@@ -238,5 +240,60 @@ describe("on-request windows (unit, no database)", () => {
     expect(
       checkTerm({ date: "2026-10-22", start: "10:00", end: "11:00" }, withRequests({ windows: thursdayOnRequest }))
     ).toEqual(["lead_time"])
+  })
+})
+
+// spec 007 — per-window delivery limit (the driver)
+describe("per-window limit (unit, no database)", () => {
+  const friday = "2026-10-23"
+  const limited = (count: number, overrides: Partial<ScheduleInputs> = {}) =>
+    inputs({
+      method: "delivery",
+      maxOrdersPerWindow: 2,
+      bookingsPerWindow: { [windowKey(friday, "12:00", "13:00")]: count },
+      ...overrides,
+    })
+
+  it("marks the window window_full at the maximum, other windows unaffected", () => {
+    const d = day(friday, limited(2))
+    const noon = d.windows.find((w) => w.start === "12:00")
+    expect(noon).toEqual({
+      start: "12:00",
+      end: "13:00",
+      available: false,
+      requires_confirmation: false,
+      reason: "window_full",
+    })
+    expect(d.windows.filter((w) => w.available)).toHaveLength(7)
+    expect(d.windows.filter((w) => w.available).every((w) => w.reason === null)).toBe(true)
+    expect(d.available).toBe(true)
+    expect(day(friday, limited(1)).windows.find((w) => w.start === "12:00")?.available).toBe(true)
+  })
+
+  it("applies no limit when the maximum is null or absent", () => {
+    expect(day(friday, limited(5, { maxOrdersPerWindow: null })).windows.every((w) => w.available)).toBe(true)
+    expect(day(friday, limited(5, { maxOrdersPerWindow: undefined })).windows.every((w) => w.available)).toBe(true)
+  })
+
+  it("keeps the day-level full reason and window reason full on a full day", () => {
+    const d = day(friday, limited(2, { bookingsPerDate: { [friday]: 10 } }))
+    expect(d.reason).toEqual("full")
+    expect(d.windows.every((w) => w.reason === "full")).toBe(true)
+  })
+
+  it("reads a day with every window taken as full", () => {
+    const all = Object.fromEntries(
+      [10, 11, 12, 13, 14, 15, 16, 17].map((h) => [windowKey(friday, `${h}:00`, `${h + 1}:00`), 2])
+    )
+    const d = day(friday, limited(0, { bookingsPerWindow: all }))
+    expect(d.available).toBe(false)
+    expect(d.reason).toEqual("full")
+  })
+
+  it("checkTerm reports window_full", () => {
+    expect(checkTerm({ date: friday, start: "12:00", end: "13:00" }, limited(2))).toEqual([
+      "window_full",
+    ])
+    expect(checkTerm({ date: friday, start: "13:00", end: "14:00" }, limited(2))).toEqual([])
   })
 })

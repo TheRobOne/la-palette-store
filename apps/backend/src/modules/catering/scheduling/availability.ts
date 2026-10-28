@@ -20,6 +20,7 @@ export type UnavailableReason =
   | "blocked"
   | "closed"
   | "full"
+  | "window_full"
   | "lead_time"
 
 export type ScheduleInputs = {
@@ -45,7 +46,14 @@ export type ScheduleInputs = {
   /** active bookings per date, all methods */
   bookingsPerDate: Record<string, number>
   dailyCapacity: number
+  /** most bookings of `method` in one window (spec 007, the driver); null/absent = no limit */
+  maxOrdersPerWindow?: number | null
+  /** active bookings of `method` per window, keyed by windowKey() */
+  bookingsPerWindow?: Record<string, number>
 }
+
+/** Why a single window is not offered (spec 007 contracts/store-api.md §5). */
+export type WindowReason = "full" | "window_full" | "lead_time"
 
 export type WindowAvailability = {
   start: string
@@ -53,6 +61,8 @@ export type WindowAvailability = {
   available: boolean
   /** true = on-request window: request without payment, staff confirm (spec 005) */
   requires_confirmation: boolean
+  /** null when available */
+  reason: WindowReason | null
 }
 
 export type DayAvailability = {
@@ -81,6 +91,19 @@ function isBlocked(date: string, inputs: ScheduleInputs) {
 
 function isFull(date: string, inputs: ScheduleInputs) {
   return (inputs.bookingsPerDate[date] ?? 0) >= inputs.dailyCapacity
+}
+
+/** Key of bookingsPerWindow. */
+export function windowKey(date: string, start: string, end: string) {
+  return `${date}|${start}|${end}`
+}
+
+function isWindowFull(date: string, start: string, end: string, inputs: ScheduleInputs) {
+  const max = inputs.maxOrdersPerWindow
+  if (max === null || max === undefined) {
+    return false
+  }
+  return (inputs.bookingsPerWindow?.[windowKey(date, start, end)] ?? 0) >= max
 }
 
 function leadTimeHours(inputs: ScheduleInputs, requiresConfirmation: boolean) {
@@ -133,6 +156,7 @@ const REASON_ORDER: UnavailableReason[] = [
   "blocked",
   "closed",
   "full",
+  "window_full",
   "lead_time",
 ]
 
@@ -150,14 +174,21 @@ export function computeAvailability(
     }
 
     const full = isFull(date, inputs)
-    const windows = windowsFor(date, inputs).map((w) => {
+    const windows = windowsFor(date, inputs).map((w): WindowAvailability => {
       const requiresConfirmation = !!w.requires_confirmation
+      const reason: WindowReason | null = full
+        ? "full"
+        : isWindowFull(date, w.start_time, w.end_time, inputs)
+          ? "window_full"
+          : !meetsLeadTime(date, w.start_time, inputs, requiresConfirmation)
+            ? "lead_time"
+            : null
       return {
         start: w.start_time,
         end: w.end_time,
-        available:
-          !full && meetsLeadTime(date, w.start_time, inputs, requiresConfirmation),
+        available: reason === null,
         requires_confirmation: requiresConfirmation,
+        reason,
       }
     })
     const available = windows.some((w) => w.available)
@@ -165,7 +196,12 @@ export function computeAvailability(
     days.push({
       date,
       available,
-      reason: available ? null : full ? "full" : "lead_time",
+      // windows taken by the per-window limit make the day read as full
+      reason: available
+        ? null
+        : windows.some((w) => w.reason === "lead_time")
+          ? "lead_time"
+          : "full",
       windows,
     })
   }
@@ -210,6 +246,9 @@ export function checkTerm(term: Term, inputs: ScheduleInputs): UnavailableReason
   }
   if (isFull(term.date, inputs)) {
     reasons.add("full")
+  }
+  if (isWindowFull(term.date, term.start, term.end, inputs)) {
+    reasons.add("window_full")
   }
   if (!meetsLeadTime(term.date, term.start, inputs, !!matched?.requires_confirmation)) {
     reasons.add("lead_time")
