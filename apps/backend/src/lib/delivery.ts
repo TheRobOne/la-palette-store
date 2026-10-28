@@ -41,21 +41,34 @@ export async function loadStoreDeliveryRules(
 }
 
 /**
- * The delivery cost staff set when confirming an out-of-zone request for this
- * cart (spec 007 US3), or null.
+ * The cart's staff-confirmed out-of-zone request (spec 007 US3): its postal
+ * code and cost, or null. Only out-of-zone requests (sent without a zone)
+ * count — an in-zone request's cost is the zone price recorded at sending,
+ * not a price staff agreed.
  */
-export async function loadConfirmedDeliveryCost(
+export async function loadConfirmedDelivery(
   container: MedusaContainer,
   cartId: string
-): Promise<number | null> {
+): Promise<{ postal_code: string; cost: number } | null> {
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
   const [booking] = await catering.listBookings(
-    { cart_id: cartId, requires_confirmation: true, status: ["confirmed", "active"] },
+    {
+      cart_id: cartId,
+      requires_confirmation: true,
+      fulfillment_method: "delivery",
+      delivery_zone_id: null,
+      status: ["confirmed", "active"],
+    },
     { order: { created_at: "DESC" }, take: 1 }
   )
-  return booking?.delivery_cost === null || booking?.delivery_cost === undefined
-    ? null
-    : toNumber(booking.delivery_cost)
+  if (
+    !booking?.delivery_postal_code ||
+    booking.delivery_cost === null ||
+    booking.delivery_cost === undefined
+  ) {
+    return null
+  }
+  return { postal_code: booking.delivery_postal_code, cost: toNumber(booking.delivery_cost) }
 }
 
 export async function quoteForPostalCode(
@@ -63,10 +76,10 @@ export async function quoteForPostalCode(
   postalCode: unknown,
   { itemTotal = 0, cartId }: { itemTotal?: BigNumberInput | null; cartId?: string } = {}
 ): Promise<DeliveryQuote> {
-  const [zones, rules, confirmedCost] = await Promise.all([
+  const [zones, rules, confirmed] = await Promise.all([
     loadDeliveryZones(container),
     loadStoreDeliveryRules(container),
-    cartId ? loadConfirmedDeliveryCost(container, cartId) : Promise.resolve(null),
+    cartId ? loadConfirmedDelivery(container, cartId) : Promise.resolve(null),
   ])
   return quoteDelivery({
     postalCode,
@@ -74,7 +87,7 @@ export async function quoteForPostalCode(
     zones,
     freeThreshold: rules.freeThreshold,
     globalMinimum: rules.globalMinimum,
-    confirmedCost,
+    confirmed,
   })
 }
 

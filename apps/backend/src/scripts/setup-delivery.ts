@@ -10,8 +10,11 @@
  * two-hour windows 10:00–18:00 on the pickup weekdays) and two example zones.
  * Zones decide the price, not Medusa geo zones (research R-01), so the
  * service zone covers all of Poland. Everything is created only if missing
- * and staff changes are never overwritten. Called from seed.ts after the
- * pickup setup; can also run on its own:
+ * and staff changes are never overwritten. The example zones are created
+ * only together with the schedule (first run), so deleting them sticks; with
+ * APP_ENV=production the schedule starts disabled and gets no example zones
+ * (seed.ts runs on every deploy). Called from seed.ts after the pickup setup;
+ * can also run on its own:
  *
  *   npx medusa exec ./src/scripts/setup-delivery.ts
  */
@@ -55,9 +58,12 @@ const EXAMPLE_ZONES = [
 ]
 
 export async function setupDelivery(container: MedusaContainer) {
+  const production = process.env.APP_ENV === "production"
   await setupDeliveryShippingOption(container)
-  await setupDeliverySchedule(container)
-  await setupExampleZones(container)
+  const firstRun = await setupDeliverySchedule(container, { enabled: !production })
+  if (firstRun && !production) {
+    await setupExampleZones(container)
+  }
 }
 
 async function setupDeliveryShippingOption(container: MedusaContainer) {
@@ -164,7 +170,11 @@ async function setupDeliveryShippingOption(container: MedusaContainer) {
   logger.info(`Created shipping option "${DELIVERY_SHIPPING_OPTION_NAME}" (calculated).`)
 }
 
-async function setupDeliverySchedule(container: MedusaContainer) {
+/** Returns true when the schedule was created by this run. */
+async function setupDeliverySchedule(
+  container: MedusaContainer,
+  { enabled }: { enabled: boolean }
+): Promise<boolean> {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
@@ -173,20 +183,20 @@ async function setupDeliverySchedule(container: MedusaContainer) {
   if (!schedule) {
     await catering.createFulfillmentSchedules({
       fulfillment_method: METHOD,
-      is_enabled: true,
+      is_enabled: enabled,
       lead_time_hours: DEFAULT_LEAD_TIME_HOURS,
       booking_horizon_days: pickup?.booking_horizon_days ?? 60,
       max_orders_per_window: DEFAULT_MAX_ORDERS_PER_WINDOW,
     })
     logger.info(
-      `Created delivery schedule (48 h lead time, max ${DEFAULT_MAX_ORDERS_PER_WINDOW} per window).`
+      `Created ${enabled ? "enabled" : "disabled"} delivery schedule (48 h lead time, max ${DEFAULT_MAX_ORDERS_PER_WINDOW} per window).`
     )
   }
 
   const existing = await catering.listWindowRules({ fulfillment_method: METHOD }, { take: 1 })
   if (existing.length) {
     logger.info("Delivery windows already configured.")
-    return
+    return !schedule
   }
   const pickupWeekdays = [
     ...new Set(
@@ -204,6 +214,7 @@ async function setupDeliverySchedule(container: MedusaContainer) {
     )
   )
   logger.info("Created default delivery windows (pickup weekdays, 2 h from 10:00 to 18:00).")
+  return !schedule
 }
 
 async function setupExampleZones(container: MedusaContainer) {

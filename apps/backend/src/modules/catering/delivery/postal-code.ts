@@ -24,9 +24,14 @@ export function isValidPostalCode(value: unknown): boolean {
  * unique valid codes, in input order, and the invalid entries as typed.
  */
 export function parsePostalCodeList(text: string): { valid: string[]; invalid: string[] } {
+  return classifyPostalCodes(text.split(/[\s,;]+/))
+}
+
+/** Unique valid codes and unique invalid entries (trimmed), both in input order. */
+export function classifyPostalCodes(entries: string[]): { valid: string[]; invalid: string[] } {
   const valid: string[] = []
   const invalid: string[] = []
-  for (const entry of text.split(/[\s,;]+/).filter(Boolean)) {
+  for (const entry of entries.map((e) => e.trim()).filter(Boolean)) {
     const code = parsePostalCode(entry)
     if (!code) {
       if (!invalid.includes(entry)) {

@@ -107,7 +107,9 @@ Zapytania spoza stref przyjmujemy z całej Polski.
 ### 4.1 Strefy, kody i ceny
 
 - Ile stref i jakie ceny? Na testy są dwie przykładowe: Strefa 1 (okolice lokalu, też kody spoza
-  Krakowa, np. Niepołomice, Wieliczka) — 30 zł, Strefa 2 (reszta Krakowa) — 50 zł.
+  Krakowa, np. Niepołomice, Wieliczka) — 30 zł, Strefa 2 (reszta Krakowa) — 50 zł. Na produkcji
+  przykładowych stref nie ma, a dostawa startuje **wyłączona**: obsługa wpisuje prawdziwe strefy
+  i dopiero wtedy włącza dostawę w Harmonogramie.
 - **Listy kodów**: w Krakowie kody są przypisane do ulic, więc strefa „do 10 km” to kilkaset
   kodów. Propozycja: przygotujemy listy z oficjalnego spisu kodów Poczty Polskiej po dzielnicach
   Krakowa i gminach wokół lokalu; manager/kuchnia przeglądają i zatwierdzają, obsługa wkleja je

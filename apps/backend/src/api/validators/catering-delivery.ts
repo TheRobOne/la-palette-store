@@ -12,11 +12,14 @@ export const StoreDeliveryQuoteQuery = z.object({
 })
 export type StoreDeliveryQuoteQueryType = z.infer<typeof StoreDeliveryQuoteQuery>
 
-/** Gross PLN with at most two decimals. */
+/**
+ * Gross PLN with at most two decimals. Compared in cents with a tolerance:
+ * `19.99 * 100` is 1998.9999999999998 in floating point.
+ */
 const amount = z
   .number()
   .min(0)
-  .refine((value) => Math.round(value * 100) === value * 100, {
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
     message: "Expected an amount with at most two decimals",
   })
 

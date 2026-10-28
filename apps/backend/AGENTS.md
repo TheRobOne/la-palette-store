@@ -106,6 +106,9 @@ Two shipping options. Setup is idempotent in `src/scripts/setup-pickup.ts` and
 `src/scripts/setup-delivery.ts` (both run by `seed.ts` on every deploy; names in
 `src/lib/pickup.ts` are lookup keys — don't rename them in the Admin). **Recognise options by
 `type.code` (`"pickup"` / `"delivery"`), never by name or list position.**
+With `APP_ENV=production` the delivery schedule is created **disabled** and without example
+zones; elsewhere the two example zones are created once, with the schedule, so deleting them
+sticks.
 
 #### Pickup
 
@@ -128,7 +131,8 @@ Full contract: [specs/007-delivery-zones/contracts/store-api.md](../../specs/007
   research R-01). One free-delivery threshold for all zones (store metadata
   `catering_free_delivery_threshold`, widget next to the minimum order value; empty = off).
 - `GET /store/catering/delivery-quote?postal_code=XX-XXX[&cart_id]` (uncached) → `status`
-  `in_zone` / `out_of_zone` / `invalid`, `amount`, effective `min_order_value`.
+  `in_zone` / `out_of_zone` / `invalid`, `amount`, effective `min_order_value`; an unknown
+  `cart_id` is a 404.
 - Option `name: "Dostawa"`, `type.code: "delivery"`, **calculated**: `listCartOptions` returns it
   without `amount`; price it with `sdk.store.fulfillment.calculate(optionId, { cart_id })`. The
   `catering-delivery` fulfillment provider returns the amount a pricing hook
@@ -139,7 +143,13 @@ Full contract: [specs/007-delivery-zones/contracts/store-api.md](../../specs/007
   `/store/catering/slots?method=delivery` (own windows, lead time, blocks and a per-window
   driver limit; daily capacity shared with pickup).
 - Out of zone → the on-request path below on any window; staff confirm with a delivery cost and
-  the cart is re-priced to it before payment.
+  the cart is re-priced to it before payment (the e-mail "zapłać do …" goes out after that). The
+  agreed cost stays for that postal code even if staff later add it to a zone; another code is
+  priced normally. A request whose zone was deleted after confirmation cannot be paid until staff
+  price it again.
+- Paying a request stores the delivery cost and zone the customer actually pays. A cart completed
+  on the standard path (the customer changed the term or the postal code) cancels its open
+  requests, so their place is not counted twice.
 
 ### Optional company invoice
 

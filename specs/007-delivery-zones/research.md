@@ -173,6 +173,11 @@ the `delivery` schedule row (max 2 per window, lead time 48 h, windows 10–12, 
 16–18 on the pickup weekdays) and the two example zones — each created only if missing, never
 overwritten. The "non-pickup option" warning in `setup-pickup.ts` is removed.
 
+*Amended after code review (PR #10)*: `seed.ts` runs on every deploy, so the example zones are
+created only together with the schedule (deleting them sticks), and with `APP_ENV=production`
+the schedule starts disabled and no example zones are created — staff enter the real zones and
+then enable delivery in the Admin.
+
 ## R-12 — Enum migration
 
 **Decision**: `FULFILLMENT_METHODS = ["pickup", "delivery"]`; `medusa db:generate catering`

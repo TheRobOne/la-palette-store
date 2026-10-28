@@ -171,6 +171,13 @@ medusaIntegrationTestRunner({
         const invalid = await api.get("/store/catering/delivery-quote?postal_code=31763", { headers })
         expect(invalid.data.delivery_quote).toEqual(expect.objectContaining({ status: "invalid", amount: null }))
       })
+
+      it("answers 404 for an unknown cart", async () => {
+        const response = await api
+          .get("/store/catering/delivery-quote?postal_code=31-763&cart_id=cart_missing", { headers })
+          .catch(asResponse)
+        expect(response.status).toEqual(404)
+      })
     })
 
     describe("GET /store/catering/order-rules", () => {
@@ -328,6 +335,23 @@ medusaIntegrationTestRunner({
         expect(await catering().listDeliveryZoneCodes({ code: "31-872" })).toHaveLength(0)
       })
 
+      it("accepts prices that are not exact in floating point", async () => {
+        const created = await api.post(
+          "/admin/catering/delivery-zones",
+          { name: "Strefa 3", price: 19.99, min_order_value: 4.35, postal_codes: ["31-870"] },
+          { headers: await adminHeaders() }
+        )
+        expect(created.data.delivery_zone).toEqual(expect.objectContaining({ price: 19.99, min_order_value: 4.35 }))
+        const refused = await api
+          .post(
+            "/admin/catering/delivery-zones",
+            { name: "Strefa 4", price: 19.999, postal_codes: ["31-871"] },
+            { headers: await adminHeaders() }
+          )
+          .catch(asResponse)
+        expect(refused.status).toEqual(400)
+      })
+
       it("names invalid entries, codes of another zone and a duplicate name", async () => {
         const auth = await adminHeaders()
         const post = (body: Record<string, unknown>) =>
@@ -452,6 +476,76 @@ medusaIntegrationTestRunner({
         await confirm((await bookingOf(cartId)).id, { delivery_cost: 80 })
         await api.post(`/store/carts/${cartId}`, { shipping_address: address("34-501") }, { headers })
         await expectRefused(cartId, "Zamówienie różni się od wysłanego zapytania — skontaktuj się z nami.")
+      })
+
+      it("keeps the agreed cost when the code is added to a zone after confirmation", async () => {
+        const cartId = await createDeliveryCart("34-500")
+        await sendRequest(cartId)
+        const request = await bookingOf(cartId)
+        await confirm(request.id, { delivery_cost: 80 })
+        const [zone] = await catering().listDeliveryZones({ name: "Strefa 1" })
+        await catering().createDeliveryZoneCodes([{ code: "34-500", zone_id: zone.id }])
+        // any cart update re-prices the delivery method
+        await api.post(`/store/carts/${cartId}`, { shipping_address: address("34-500") }, { headers })
+        expect((await getCart(cartId)).shipping_total).toEqual(80)
+
+        await pay(cartId)
+        const placed = await complete(cartId)
+        expect(placed.data.order.shipping_total).toEqual(80)
+        const bookings = await catering().listBookings({ cart_id: cartId })
+        expect(bookings.map((b) => [b.id, b.status])).toEqual([[request.id, "active"]])
+      })
+
+      it("pays an in-zone code on the standard path and cancels the superseded request", async () => {
+        const cartId = await createDeliveryCart("34-500")
+        await sendRequest(cartId)
+        const request = await bookingOf(cartId)
+        await confirm(request.id, { delivery_cost: 80 })
+        await api.post(`/store/carts/${cartId}`, { shipping_address: address("31-763") }, { headers })
+        expect((await getCart(cartId)).shipping_total).toEqual(30)
+
+        await pay(cartId)
+        const placed = await complete(cartId)
+        expect(placed.data.order.shipping_total).toEqual(30)
+        const bookings = await catering().listBookings({ cart_id: cartId }, { order: { created_at: "ASC" } })
+        expect(bookings.map((b) => b.status)).toEqual(["canceled", "active"])
+        expect(bookings[1]).toEqual(expect.objectContaining({ delivery_cost: 30, delivery_zone_name: "Strefa 1" }))
+      })
+
+      describe("in-zone delivery on an on-request window", () => {
+        beforeEach(async () => {
+          const rules = await catering().listWindowRules({ fulfillment_method: "delivery" })
+          await catering().updateWindowRules(rules.map((r) => ({ id: r.id, requires_confirmation: true })))
+        })
+
+        it("records the zone price the customer pays, not the one at sending", async () => {
+          const cartId = await createDeliveryCart("31-763")
+          expect((await sendRequest(cartId)).status).toEqual(200)
+          const request = await bookingOf(cartId)
+          expect(request.delivery_cost).toEqual(30)
+          expect((await confirm(request.id)).status).toEqual(200)
+
+          const [zone] = await catering().listDeliveryZones({ name: "Strefa 1" })
+          await catering().updateDeliveryZones({ id: zone.id, price: 40, name: "Strefa 1 (centrum)" })
+          await api.post(`/store/carts/${cartId}`, { shipping_address: address("31-763") }, { headers })
+
+          await pay(cartId)
+          const placed = await complete(cartId)
+          expect(placed.data.order.shipping_total).toEqual(40)
+          expect(await bookingOf(cartId)).toEqual(
+            expect.objectContaining({ status: "active", delivery_cost: 40, delivery_zone_name: "Strefa 1 (centrum)" })
+          )
+        })
+
+        it("does not let a confirmed request pay once its zone is gone", async () => {
+          const cartId = await createDeliveryCart("31-763")
+          await sendRequest(cartId)
+          await confirm((await bookingOf(cartId)).id)
+          const [zone] = await catering().listDeliveryZones({ name: "Strefa 1" })
+          await catering().deleteDeliveryZones(zone.id)
+          await api.post(`/store/carts/${cartId}`, { shipping_address: address("31-763") }, { headers })
+          await expectRefused(cartId, "Dostawa pod ten adres wymaga potwierdzenia kuchni — wyślij zapytanie.")
+        })
       })
     })
 

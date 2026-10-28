@@ -1,4 +1,4 @@
-import { parsePostalCode } from "./postal-code"
+import { classifyPostalCodes } from "./postal-code"
 
 /**
  * Validation of a zone saved by staff (specs/007-delivery-zones
@@ -18,18 +18,7 @@ export function validateZoneInput(input: ZoneInput, zones: OtherZone[]): ZoneVal
     return { ok: false, message: `Strefa o nazwie „${name}” już istnieje.` }
   }
 
-  const codes: string[] = []
-  const invalid: string[] = []
-  for (const entry of input.postal_codes.map((c) => c.trim()).filter(Boolean)) {
-    const code = parsePostalCode(entry)
-    if (!code) {
-      if (!invalid.includes(entry)) {
-        invalid.push(entry)
-      }
-    } else if (!codes.includes(code)) {
-      codes.push(code)
-    }
-  }
+  const { valid: codes, invalid } = classifyPostalCodes(input.postal_codes)
   if (invalid.length) {
     return {
       ok: false,

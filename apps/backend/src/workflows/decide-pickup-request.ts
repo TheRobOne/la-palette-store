@@ -37,7 +37,8 @@ const conflict = (message: string) =>
  * Staff decision on a request (specs/005-on-request-terms US2): confirm sets
  * the payment deadline (capped at the window start) and, for an out-of-zone
  * delivery, the delivery cost (spec 007 US3); decline ends the request and
- * frees its place. Compensation restores the previous state.
+ * frees its place. Compensation restores the previous state. The customer
+ * event is emitted by the last step, once the cart is re-priced.
  */
 const decidePickupRequestStep = createStep(
   "decide-pickup-request",
@@ -87,7 +88,6 @@ const decidePickupRequestStep = createStep(
         decided_by: input.actor_id ?? null,
         ...(outOfZone ? { delivery_cost: input.delivery_cost } : {}),
       })
-      await emitRequestEvent(container, REQUEST_EVENTS.confirmed, booking)
       return new StepResponse(updated, previous)
     }
 
@@ -100,7 +100,6 @@ const decidePickupRequestStep = createStep(
       decided_at: now,
       decided_by: input.actor_id ?? null,
     })
-    await emitRequestEvent(container, REQUEST_EVENTS.declined, booking)
     return new StepResponse(updated, previous)
   },
   async (previous, { container }) => {
@@ -130,11 +129,27 @@ const repriceRequestCartStep = createStep(
   }
 )
 
+/** The customer e-mail ("zapłać do …" / declined) goes out only after every change succeeded. */
+const emitDecisionEventStep = createStep(
+  "emit-decision-event",
+  async (input: DecidePickupRequestInput, { container }) => {
+    const catering: CateringModuleService = container.resolve(CATERING_MODULE)
+    const [booking] = await catering.listBookings({ id: input.id })
+    await emitRequestEvent(
+      container,
+      input.decision === "confirm" ? REQUEST_EVENTS.confirmed : REQUEST_EVENTS.declined,
+      booking
+    )
+    return new StepResponse(undefined)
+  }
+)
+
 export const decidePickupRequestWorkflow = createWorkflow(
   "decide-pickup-request",
   (input: DecidePickupRequestInput) => {
     const booking = decidePickupRequestStep(input)
     repriceRequestCartStep(input)
+    emitDecisionEventStep(input)
     return new WorkflowResponse(booking)
   }
 )

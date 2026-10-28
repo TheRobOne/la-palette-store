@@ -102,6 +102,7 @@ address is complete — and to render the out-of-zone message.
 - `invalid`: should not happen with form validation; ask for a correct postal code
   (`XX-XXX`); no price.
 - Uncached (`cache: "no-store"`); zones change in the Admin without a deploy.
+- An unknown `cart_id` answers 404.
 
 ## 5. Slots for delivery
 
@@ -129,7 +130,11 @@ address is complete — and to render the out-of-zone message.
   `delivery_cost` is `null` until staff confirm. After confirmation the cart's delivery method is
   already re-priced to it: run the normal payment step and `complete` on the same, unchanged
   cart.
-- Changing the postal code after sending makes the request unpayable (005 snapshot rule).
+- Changing the postal code after sending makes the request unpayable (005 snapshot rule),
+  unless the new code is in a zone on a standard window: then the cart is paid normally at the
+  zone price and the request is canceled.
+- The agreed `delivery_cost` stays for its postal code even if that code is later added to a
+  zone (the quote stays `out_of_zone` with that amount).
 
 ## 7. Completion errors (new, 400 `invalid_data`, Polish, show as is)
 

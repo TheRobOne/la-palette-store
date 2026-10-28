@@ -8,7 +8,14 @@ import { quoteDelivery } from "../../modules/catering/delivery/quote"
 
 const zones = [{ id: "dzone_1", name: "Strefa 1", price: 30, min_order_value: 200, codes: ["31-762"] }]
 const quote = (postalCode: string, confirmedCost: number | null = null) =>
-  quoteDelivery({ postalCode, itemTotal: 0, zones, freeThreshold: null, globalMinimum: 100, confirmedCost })
+  quoteDelivery({
+    postalCode,
+    itemTotal: 0,
+    zones,
+    freeThreshold: null,
+    globalMinimum: 100,
+    confirmed: confirmedCost === null ? null : { postal_code: postalCode, cost: confirmedCost },
+  })
 
 describe("delivery checks (unit, no database)", () => {
   it("requires the term method to match the shipping option", () => {

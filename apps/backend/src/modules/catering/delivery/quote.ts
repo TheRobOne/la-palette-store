@@ -22,8 +22,12 @@ export type QuoteInputs = {
   /** null = no free delivery */
   freeThreshold: number | null
   globalMinimum: number
-  /** staff-set cost of a confirmed out-of-zone request, if any */
-  confirmedCost?: number | null
+  /**
+   * The cart's confirmed out-of-zone request, if any: its postal code and the
+   * staff-set cost. For that same code the agreed cost and the request path
+   * stay, even if the code was added to a zone later (spec 007 FR-010).
+   */
+  confirmed?: { postal_code: string; cost: number } | null
 }
 
 export type DeliveryQuote =
@@ -70,13 +74,14 @@ export function quoteDelivery(inputs: QuoteInputs): DeliveryQuote {
     }
   }
 
-  const zone = matchZone(postalCode, inputs.zones)
+  const confirmed = inputs.confirmed?.postal_code === postalCode ? inputs.confirmed : null
+  const zone = confirmed ? null : matchZone(postalCode, inputs.zones)
   if (!zone) {
     return {
       status: "out_of_zone",
       postal_code: postalCode,
       zone: null,
-      amount: inputs.confirmedCost ?? null,
+      amount: confirmed?.cost ?? null,
       min_order_value: inputs.globalMinimum,
       requires_confirmation: true,
     }
