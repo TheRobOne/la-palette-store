@@ -206,6 +206,8 @@ new one, and the full day triggers a warning before saving.
   fulfillment method, with pickup as the only method now, so that delivery can later get its
   own windows and rules without changing how pickup works; the daily capacity is shared by all
   methods because it reflects the kitchen's production.
+  *Since spec 007 (constitution 2.4.x) delivery is offered with its own schedule and a
+  per-window limit; see specs/007-delivery-zones.*
 - **FR-012**: All times MUST be interpreted in Polish local time (Europe/Warsaw), correctly
   across daylight-saving changes.
 - **FR-013**: The storefront MUST be able to read available terms for a date range and attach

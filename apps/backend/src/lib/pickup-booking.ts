@@ -103,7 +103,8 @@ type CartForReservation = {
  * - Standard window (004): re-check the term and create an `active` booking,
  *   or accept an existing `active` booking for the same term (retried
  *   completion — neither counted twice nor deleted on failure).
- * - On-request window (spec 005, FR-003a): only a `confirmed` request within
+ * - On-request window (spec 005, FR-003a) or an out-of-zone delivery on any
+ *   window (spec 007 FR-010): only a `confirmed` request within
  *   its payment deadline whose cart still matches the snapshot can be paid;
  *   it becomes `active`. Its place is already held, so capacity is not
  *   re-checked.
@@ -123,13 +124,17 @@ export async function reservePickupTerm(
       to: term.date,
     })
 
-    if (termRequiresConfirmation(term, context)) {
+    // An out-of-zone delivery always needs the kitchen's confirmation and a
+    // staff-set cost (spec 007 FR-010), on any window.
+    if (termRequiresConfirmation(term, context) || delivery?.status === "out_of_zone") {
       const [request] = await catering.listBookings(
         { cart_id: cart.id, requires_confirmation: true },
         { order: { created_at: "DESC" }, take: 1 }
       )
       if (!request || request.status === "requested") {
-        throw requiresConfirmationError()
+        throw delivery?.status === "out_of_zone"
+          ? outOfZoneRequestError()
+          : requiresConfirmationError()
       }
       if (request.status === "active" && sameTerm(request, term)) {
         return undefined
@@ -137,17 +142,11 @@ export async function reservePickupTerm(
       if (!canPay(request, new Date())) {
         throw paymentTimeOverError()
       }
-      if (!snapshotMatches(request.request_snapshot as RequestSnapshot, cart, term)) {
+      if (!snapshotMatches(request.request_snapshot as RequestSnapshot, cart, term, delivery)) {
         throw snapshotMismatchError()
       }
       await catering.updateBookings({ id: request.id, status: "active" })
       return { revert: { id: request.id, status: "confirmed" } }
-    }
-
-    // An out-of-zone delivery always needs the kitchen's confirmation
-    // (spec 007 FR-010); the request path is completed in US3.
-    if (delivery?.status === "out_of_zone") {
-      throw outOfZoneRequestError()
     }
 
     const existing = await catering.listBookings({ cart_id: cart.id, status: "active" })

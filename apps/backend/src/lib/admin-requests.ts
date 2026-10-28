@@ -2,14 +2,16 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
+import { type AddressLike, bookingFulfillment } from "./request-dto"
 
 const iso = (value: Date | string | null | undefined) =>
   value ? new Date(value).toISOString() : null
 
 /**
  * Requests for the Admin (contracts/admin-api.md "Requests"): booking state
- * plus contact e-mail, items and total from the cart, sorted by the nearest
- * deadline.
+ * plus contact e-mail, items and total from the cart, the fulfillment
+ * (delivery address, zone or out of zone, cost — spec 007), sorted by the
+ * nearest deadline.
  */
 export async function listAdminRequests(
   container: MedusaContainer,
@@ -36,7 +38,7 @@ export async function listAdminRequests(
   const { data: carts } = cartIds.length
     ? await query.graph({
         entity: "cart",
-        fields: ["id", "email", "item_total", "items.title", "items.quantity"],
+        fields: ["id", "email", "item_total", "items.title", "items.quantity", "shipping_address.*"],
         filters: { id: cartIds },
       })
     : { data: [] }
@@ -51,7 +53,12 @@ export async function listAdminRequests(
     .sort((a, b) => deadlineOf(a) - deadlineOf(b))
     .map((b) => {
       const cart = cartById.get(b.cart_id) as
-        | { email?: string | null; item_total?: unknown; items?: { title?: string | null; quantity: number }[] }
+        | {
+            email?: string | null
+            item_total?: unknown
+            items?: { title?: string | null; quantity: number }[]
+            shipping_address?: AddressLike
+          }
         | undefined
       return {
         id: b.id,
@@ -63,6 +70,7 @@ export async function listAdminRequests(
         email: cart?.email ?? null,
         item_total: cart?.item_total != null ? Number(cart.item_total) : null,
         items: (cart?.items ?? []).map((i) => ({ title: i.title ?? null, quantity: Number(i.quantity) })),
+        fulfillment: bookingFulfillment(b, cart?.shipping_address),
         decided_at: iso(b.decided_at),
         order_id: b.order_id ?? null,
       }

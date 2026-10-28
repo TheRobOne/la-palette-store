@@ -131,6 +131,19 @@ Zapytania spoza stref przyjmujemy z całej Polski.
 - Maile dla dostaw (spec 007, `contracts/emails.md`) — m.in. przypomnienie „Jutro dostawa
   zamówienia nr …” z tekstem „kierowca zadzwoni pod numer …”. Do akceptacji jak pozostałe maile
   (pkt 1.2).
+- Teksty wdrożone w backendzie (do akceptacji; zmiana = jedna linijka w podanym pliku):
+  - błędy przy płatności (`apps/backend/src/lib/delivery-checks.ts`): „Uzupełnij adres dostawy:
+    ulica i numer, kod pocztowy, miejscowość, telefon.”, „Podaj poprawny kod pocztowy (XX-XXX).”,
+    „Wybierz ponownie sposób odbioru lub dostawy.”, „Koszt dostawy się zmienił — sprawdź koszyk
+    i spróbuj ponownie.”, „Minimalna wartość zamówienia z dostawą pod ten adres to … Dodaj
+    produkty za co najmniej ….”, „Dostawa pod ten adres wymaga potwierdzenia kuchni — wyślij
+    zapytanie.”;
+  - zajęte okno (`apps/backend/src/modules/catering/scheduling/term.ts`): „Wybrany termin dostawy
+    (…) nie jest już dostępny. Wybierz inny termin.”;
+  - tematy maili (`apps/backend/src/lib/emails/templates/`): „Otrzymaliśmy zapytanie o dostawę
+    …”, „Kuchnia potwierdziła dostawę … — zapłać do …”, „Zapytanie o dostawę … wygasło”, „Zmiana
+    terminu dostawy: …”, „Jutro dostawa zamówienia nr …”; w treści „Koszt dostawy podamy razem
+    z potwierdzeniem.” i „Kierowca zadzwoni pod numer …”.
 - Dostawa obejmuje tylko dowiezienie — bez rozstawiania bufetu i odbioru naczyń. Czy to
   zgodne z ofertą? Jeśli naczynia/sprzęt wracają, trzeba to opisać w regulaminie.
 

@@ -4,6 +4,7 @@ import { CATERING_MODULE } from "../../../../modules/catering"
 import { CAPACITY_STATUSES } from "../../../../modules/catering/models/booking"
 import type CateringModuleService from "../../../../modules/catering/service"
 import { addDays, isoWeekday } from "../../../../modules/catering/scheduling/time"
+import { type AddressLike, formatDeliveryAddress } from "../../../../lib/request-dto"
 import type { DateRangeQueryType } from "../../../validators/catering-scheduling"
 
 type OrderSummary = {
@@ -25,15 +26,6 @@ type OrderSummary = {
   delivery_cost: number | null
 }
 
-type AddressLike = {
-  address_1?: string | null
-  postal_code?: string | null
-  city?: string | null
-  phone?: string | null
-} | null | undefined
-
-const formatAddress = (a: AddressLike) =>
-  a?.address_1 ? [a.address_1, [a.postal_code, a.city].filter(Boolean).join(" ")].join(", ") : null
 
 /**
  * `GET /admin/catering/calendar?from&to` — active bookings grouped by day and
@@ -110,7 +102,7 @@ export async function GET(
         status: (order?.status as string | undefined) ?? null,
         booking_status: b.status,
         method: b.fulfillment_method,
-        address: isDelivery ? formatAddress(address) : null,
+        address: isDelivery ? formatDeliveryAddress(address) : null,
         phone: isDelivery ? address?.phone ?? null : null,
         zone_name: isDelivery ? b.delivery_zone_name ?? null : null,
         delivery_cost:

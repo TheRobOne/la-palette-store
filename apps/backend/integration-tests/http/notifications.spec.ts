@@ -224,6 +224,63 @@ medusaIntegrationTestRunner({
       })
     })
 
+    // spec 007 — a delivery order carries the address, zone and cost
+    describe("delivery orders", () => {
+      it("sends confirmation and staff e-mail with the delivery fulfillment", async () => {
+        const { data } = await api.get(
+          `/store/catering/slots?from=${today()}&to=${addDays(today(), 14)}&method=delivery`,
+          { headers }
+        )
+        const day = (data.slots.days as Day[]).find((d) => d.windows.some((w) => w.available))!
+        const w = day.windows.find((x) => x.available)!
+        const {
+          data: { cart },
+        } = await api.post("/store/carts", { region_id: regionId, email: CUSTOMER }, { headers })
+        await api.post(`/store/carts/${cart.id}/line-items`, { variant_id: variantId, quantity: 12 }, { headers })
+        await api.post(
+          `/store/carts/${cart.id}`,
+          {
+            shipping_address: {
+              first_name: "Anna",
+              last_name: "Nowak",
+              address_1: "ul. Przykładowa 5/2",
+              postal_code: "31-763",
+              city: "Kraków",
+              phone: "+48 600 000 000",
+              country_code: "pl",
+            },
+          },
+          { headers }
+        )
+        const {
+          data: { shipping_options },
+        } = await api.get(`/store/shipping-options?cart_id=${cart.id}`, { headers })
+        await api.post(
+          `/store/carts/${cart.id}/shipping-methods`,
+          { option_id: shipping_options.find((o: { type: { code: string } }) => o.type.code === "delivery").id },
+          { headers }
+        )
+        await api.post(
+          `/store/carts/${cart.id}`,
+          { metadata: { catering_term: { method: "delivery", date: day.date, start: w.start, end: w.end } } },
+          { headers }
+        )
+        await payAndComplete(cart.id)
+
+        const fulfillment = {
+          method: "delivery",
+          address: { address_1: "ul. Przykładowa 5/2", postal_code: "31-763", city: "Kraków", phone: "+48 600 000 000" },
+          zone_name: "Strefa 1",
+          out_of_zone: false,
+          delivery_cost: 30,
+        }
+        const [confirmation] = await waitForEmails({ template: "order-confirmation" })
+        expect(confirmation.data).toEqual(expect.objectContaining({ fulfillment }))
+        const [staff] = await waitForEmails({ template: "staff-new-order" })
+        expect(staff.data).toEqual(expect.objectContaining({ fulfillment }))
+      })
+    })
+
     describe("US2 — request e-mails", () => {
       it("sends one e-mail per state: created, confirmed, then the order confirmation when paid", async () => {
         const term = await firstTerm(true)

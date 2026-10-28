@@ -131,6 +131,18 @@ describe("snapshot", () => {
   it("does not match without a snapshot", () => {
     expect(snapshotMatches(null, cart, term)).toBe(false)
   })
+
+  it("compares the delivery postal code (spec 007)", () => {
+    const delivery = { postal_code: "34-500" }
+    const snapshot = buildSnapshot(cart, term, delivery)
+    expect(snapshot.delivery).toEqual({ postal_code: "34-500" })
+    expect(snapshotMatches(snapshot, cart, term, { postal_code: "34-500" })).toBe(true)
+    expect(snapshotMatches(snapshot, cart, term, { postal_code: "34-501" })).toBe(false)
+    expect(snapshotMatches(snapshot, cart, term)).toBe(false)
+    // a pickup snapshot has no delivery part
+    expect(buildSnapshot(cart, term)).not.toHaveProperty("delivery")
+    expect(snapshotMatches(buildSnapshot(cart, term), cart, term, delivery)).toBe(false)
+  })
 })
 
 describe("messages", () => {

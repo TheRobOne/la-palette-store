@@ -59,7 +59,8 @@ const sendPickupRequestStep = createStep(
         now,
       })
       const window = findWindow(term, context)
-      if (window && !window.requires_confirmation) {
+      // out-of-zone delivery goes to the kitchen on any window (spec 007 FR-010)
+      if (window && !window.requires_confirmation && delivery?.status !== "out_of_zone") {
         throw notOnRequestError()
       }
       if (checkTerm(term, context).length > 0) {
@@ -82,7 +83,7 @@ const sendPickupRequestStep = createStep(
           schedule?.request_response_hours ?? 24,
           warsawWallClockToInstant(term.date, term.start)
         ),
-        request_snapshot: buildSnapshot(cart, term),
+        request_snapshot: buildSnapshot(cart, term, delivery),
         ...bookingDeliveryFields(delivery),
       })
       return { booking, createdId: booking.id as string | undefined }

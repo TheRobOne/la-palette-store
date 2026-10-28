@@ -81,6 +81,16 @@ export type PickupRequest = {
   items: { title: string | null; quantity: number }[]
   decided_at: string | null
   order_id: string | null
+  // spec 007: address/phone null for pickup; out_of_zone = staff set the delivery cost
+  fulfillment: {
+    method: FulfillmentMethod
+    address: string | null
+    phone: string | null
+    postal_code: string | null
+    zone_name: string | null
+    out_of_zone: boolean
+    delivery_cost: number | null
+  }
 }
 
 export const REQUEST_STATUS_LABELS: Record<PickupRequest["status"], string> = {

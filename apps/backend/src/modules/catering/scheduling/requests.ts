@@ -62,6 +62,9 @@ export function selectExpired(
 
 type CartLike = { items?: { variant_id?: string | null; quantity: number | string }[] | null }
 
+/** The delivery part of a request (spec 007); null for pickup. */
+type DeliveryLike = { postal_code: string | null } | null | undefined
+
 function itemsOf(cart: CartLike) {
   const totals = new Map<string, number>()
   for (const item of cart.items ?? []) {
@@ -74,11 +77,19 @@ function itemsOf(cart: CartLike) {
     .sort((a, b) => a.variant_id.localeCompare(b.variant_id))
 }
 
-/** What the customer sent: variant quantities (order-insensitive) and the term. */
-export function buildSnapshot(cart: CartLike, term: CateringTerm): RequestSnapshot {
+/**
+ * What the customer sent: variant quantities (order-insensitive), the term
+ * and, for delivery, the postal code (spec 007 — it decides the price).
+ */
+export function buildSnapshot(
+  cart: CartLike,
+  term: CateringTerm,
+  delivery: DeliveryLike = null
+): RequestSnapshot {
   return {
     items: itemsOf(cart),
     term: { method: term.method, date: term.date, start: term.start, end: term.end },
+    ...(delivery?.postal_code ? { delivery: { postal_code: delivery.postal_code } } : {}),
   }
 }
 
@@ -90,12 +101,13 @@ export function buildSnapshot(cart: CartLike, term: CateringTerm): RequestSnapsh
 export function snapshotMatches(
   snapshot: RequestSnapshot | null | undefined,
   cart: CartLike,
-  term: CateringTerm
+  term: CateringTerm,
+  delivery: DeliveryLike = null
 ): boolean {
   if (!snapshot) {
     return false
   }
-  const current = buildSnapshot(cart, term)
+  const current = buildSnapshot(cart, term, delivery)
   const stored = [...(snapshot.items ?? [])]
     .map((i) => ({ variant_id: String(i.variant_id), quantity: Number(i.quantity) }))
     .sort((a, b) => a.variant_id.localeCompare(b.variant_id))
@@ -115,7 +127,10 @@ export function snapshotMatches(
     t.start === term.start &&
     t.end === term.end
 
-  return sameItems && sameTerm
+  const samePostalCode =
+    (snapshot.delivery?.postal_code ?? null) === (current.delivery?.postal_code ?? null)
+
+  return sameItems && sameTerm && samePostalCode
 }
 
 // Customer-facing messages (contracts/store-api.md §2, §4), `invalid_data` → 400.

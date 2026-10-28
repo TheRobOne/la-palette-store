@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Badge, Button, Container, Heading, Tabs, Text, toast } from "@medusajs/ui"
+import { Badge, Button, Container, Heading, Input, Label, Tabs, Text, toast } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import {
@@ -26,14 +26,23 @@ const TABS = [
 const formatPln = (amount: number | null) =>
   amount === null ? "—" : `${amount.toFixed(2).replace(".", ",")} zł`
 
+const parseCost = (value: string) => {
+  const cost = Number(value.replace(",", "."))
+  return value.trim() !== "" && Number.isFinite(cost) && cost >= 0 ? cost : null
+}
+
 /**
- * "Zapytania": requests for on-request pickup terms — confirm or decline
- * (specs/005-on-request-terms US2). A request becomes an order only once paid.
+ * "Zapytania": requests for on-request terms — confirm or decline
+ * (specs/005-on-request-terms US2). A delivery outside every zone is
+ * confirmed with its delivery cost (specs/007-delivery-zones US3). A request
+ * becomes an order only once paid.
  */
 const PickupRequestsPage = () => {
   const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("pending")
   const [requests, setRequests] = useState<PickupRequest[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // delivery cost typed per out-of-zone request
+  const [costs, setCosts] = useState<Record<string, string>>({})
   // customer e-mails per request (spec 006), newest first
   const [emails, setEmails] = useState<Record<string, AdminEmailDto[]>>({})
 
@@ -75,7 +84,13 @@ const PickupRequestsPage = () => {
     }
     setBusy(request.id)
     try {
-      await adminFetch(`/admin/catering/requests/${request.id}/${action}`, { method: "POST" })
+      const cost = parseCost(costs[request.id] ?? "")
+      await adminFetch(`/admin/catering/requests/${request.id}/${action}`, {
+        method: "POST",
+        ...(action === "confirm" && request.fulfillment.out_of_zone
+          ? { body: { delivery_cost: cost } }
+          : {}),
+      })
       toast.success(action === "confirm" ? "Zapytanie potwierdzone" : "Zapytanie odrzucone")
       load()
     } catch (e) {
@@ -133,6 +148,24 @@ const PickupRequestsPage = () => {
               <Text size="small" className="text-ui-fg-subtle">
                 {r.email ?? "—"} · {formatPln(r.item_total)}
               </Text>
+              {r.fulfillment.method === "delivery" ? (
+                <Text size="small">
+                  Dostawa: {r.fulfillment.address ?? r.fulfillment.postal_code ?? "—"}
+                  {r.fulfillment.phone ? ` · tel. ${r.fulfillment.phone}` : ""} ·{" "}
+                  {r.fulfillment.out_of_zone ? (
+                    <Badge size="2xsmall" color="orange">
+                      poza strefą
+                    </Badge>
+                  ) : (
+                    r.fulfillment.zone_name
+                  )}
+                  {r.fulfillment.delivery_cost !== null
+                    ? ` · koszt dostawy ${formatPln(r.fulfillment.delivery_cost)}`
+                    : ""}
+                </Text>
+              ) : (
+                <Text size="small">Odbiór osobisty</Text>
+              )}
               <Text size="small" className="text-ui-fg-subtle">
                 {r.items.map((i) => `${i.quantity} × ${i.title ?? "?"}`).join(", ")}
               </Text>
@@ -166,9 +199,31 @@ const PickupRequestsPage = () => {
               )}
             </div>
             {(r.status === "requested" || r.status === "confirmed") && (
-              <div className="flex items-start gap-x-2">
+              <div className="flex items-end gap-x-2">
+                {r.status === "requested" && r.fulfillment.out_of_zone && (
+                  <div className="flex flex-col gap-y-1">
+                    <Label htmlFor={`cost-${r.id}`} size="small">
+                      Koszt dostawy (zł)
+                    </Label>
+                    <Input
+                      id={`cost-${r.id}`}
+                      size="small"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="w-28"
+                      value={costs[r.id] ?? ""}
+                      onChange={(e) => setCosts({ ...costs, [r.id]: e.target.value })}
+                    />
+                  </div>
+                )}
                 {r.status === "requested" && (
-                  <Button size="small" isLoading={busy === r.id} onClick={() => decide(r, "confirm")}>
+                  <Button
+                    size="small"
+                    isLoading={busy === r.id}
+                    disabled={r.fulfillment.out_of_zone && parseCost(costs[r.id] ?? "") === null}
+                    onClick={() => decide(r, "confirm")}
+                  >
                     Potwierdź
                   </Button>
                 )}

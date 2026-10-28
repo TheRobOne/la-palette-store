@@ -17,6 +17,7 @@ import {
   StoreSlotsQuery,
 } from './validators/catering-scheduling'
 import {
+  AdminConfirmRequestBody,
   AdminDeliveryZoneBody,
   AdminDeliveryZoneMatchQuery,
   StoreDeliveryQuoteQuery,
@@ -92,6 +93,11 @@ export default defineMiddlewares({
       method: ['GET'],
       matcher: '/admin/catering/requests',
       middlewares: [validateAndTransformQuery(AdminRequestsQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/requests/:id/confirm',
+      middlewares: [validateAndTransformBody(AdminConfirmRequestBody)],
     },
     {
       method: ['POST'],

@@ -103,14 +103,14 @@ Integration tests run against the dev PostgreSQL (README "Integration tests"); h
 
 ### Tests for User Story 3
 
-- [ ] T025 [US3] Integration tests in `apps/backend/integration-tests/http/delivery.spec.ts`: out-of-zone cart on a standard window → `POST /store/catering/requests` accepted; completing it before confirmation → 400; confirm without `delivery_cost` → 400 `Podaj koszt dostawy.`; confirm an in-zone request with `delivery_cost` → 400; confirm with 80 → status shows `fulfillment.delivery_cost: 80`, cart `shipping_total` 80, completion creates an order with 80; postal code changed after sending → payment refused (snapshot); expiry releases capacity as in 005
+- [X] T025 [US3] Integration tests in `apps/backend/integration-tests/http/delivery.spec.ts`: out-of-zone cart on a standard window → `POST /store/catering/requests` accepted; completing it before confirmation → 400; confirm without `delivery_cost` → 400 `Podaj koszt dostawy.`; confirm an in-zone request with `delivery_cost` → 400; confirm with 80 → status shows `fulfillment.delivery_cost: 80`, cart `shipping_total` 80, completion creates an order with 80; postal code changed after sending → payment refused (snapshot); expiry releases capacity as in 005
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Needs-confirmation rule: in `apps/backend/src/lib/pickup-booking.ts` and `apps/backend/src/workflows/send-pickup-request.ts` a delivery cart whose quote is `out_of_zone` is treated as on request for any window (send: no `notOnRequestError`; reserve: requires a confirmed, unexpired request); `buildSnapshot` / `snapshotMatches` in `apps/backend/src/modules/catering/scheduling/requests.ts` include `delivery.postal_code` (unit test in `scheduling/__tests__/requests.unit.spec.ts`)
-- [ ] T027 [US3] `apps/backend/src/workflows/decide-pickup-request.ts` + `apps/backend/src/api/admin/catering/requests/[id]/confirm/route.ts` (validator `{ delivery_cost?: number ≥ 0 }`): out-of-zone delivery request requires `delivery_cost`, any other refuses it; store it on the booking; after confirming, re-run `addShippingMethodToCartWorkflow` with the delivery option on the request's cart so the hook re-prices it (T001 d) — use `refreshCartShippingMethodsWorkflow({ cart_id })` instead (research R-13 d)
-- [ ] T028 [P] [US3] Request DTOs `apps/backend/src/lib/request-dto.ts` / `src/lib/admin-requests.ts`: `fulfillment: { method, address, phone, postal_code, zone_name, out_of_zone, delivery_cost }` for `GET /store/catering/requests/:cart_id` and the Admin list (contracts store-api §6, admin-api "Requests")
-- [ ] T029 [US3] `apps/backend/src/admin/routes/pickup-requests/page.tsx`: show method, address, zone or "poza strefą"; confirm dialog asks for "Koszt dostawy (zł)" (required) for out-of-zone requests
+- [X] T026 [US3] Needs-confirmation rule: in `apps/backend/src/lib/pickup-booking.ts` and `apps/backend/src/workflows/send-pickup-request.ts` a delivery cart whose quote is `out_of_zone` is treated as on request for any window (send: no `notOnRequestError`; reserve: requires a confirmed, unexpired request); `buildSnapshot` / `snapshotMatches` in `apps/backend/src/modules/catering/scheduling/requests.ts` include `delivery.postal_code` (unit test in `scheduling/__tests__/requests.unit.spec.ts`)
+- [X] T027 [US3] `apps/backend/src/workflows/decide-pickup-request.ts` + `apps/backend/src/api/admin/catering/requests/[id]/confirm/route.ts` (validator `{ delivery_cost?: number ≥ 0 }`): out-of-zone delivery request requires `delivery_cost`, any other refuses it; store it on the booking; after confirming, re-run `addShippingMethodToCartWorkflow` with the delivery option on the request's cart so the hook re-prices it (T001 d) — use `refreshCartShippingMethodsWorkflow({ cart_id })` instead (research R-13 d)
+- [X] T028 [P] [US3] Request DTOs `apps/backend/src/lib/request-dto.ts` / `src/lib/admin-requests.ts`: `fulfillment: { method, address, phone, postal_code, zone_name, out_of_zone, delivery_cost }` for `GET /store/catering/requests/:cart_id` and the Admin list (contracts store-api §6, admin-api "Requests")
+- [X] T029 [US3] `apps/backend/src/admin/routes/pickup-requests/page.tsx`: show method, address, zone or "poza strefą"; confirm dialog asks for "Koszt dostawy (zł)" (required) for out-of-zone requests
 
 ---
 
@@ -142,21 +142,21 @@ Integration tests run against the dev PostgreSQL (README "Integration tests"); h
 
 ### Tests for User Story 5
 
-- [ ] T036 [P] [US5] Unit tests `apps/backend/src/lib/emails/__tests__/templates.unit.spec.ts`: for each template in contracts/emails.md the delivery variant has the delivery subject, address, window and cost line, no venue address/map link; pickup variants unchanged (existing assertions stay)
-- [ ] T037 [US5] Integration test in `apps/backend/integration-tests/http/notifications.spec.ts`: a delivery order produces `order-confirmation` and `staff-new-order` whose data carry `fulfillment.method: "delivery"`, address and cost
+- [X] T036 [P] [US5] Unit tests `apps/backend/src/lib/emails/__tests__/templates.unit.spec.ts`: for each template in contracts/emails.md the delivery variant has the delivery subject, address, window and cost line, no venue address/map link; pickup variants unchanged (existing assertions stay)
+- [X] T037 [US5] Integration test in `apps/backend/integration-tests/http/notifications.spec.ts`: a delivery order produces `order-confirmation` and `staff-new-order` whose data carry `fulfillment.method: "delivery"`, address and cost
 
 ### Implementation for User Story 5
 
-- [ ] T038 [US5] `apps/backend/src/lib/emails/data.ts` + `types.ts`: replace `pickup_address` with `fulfillment: { method: "pickup", address } | { method: "delivery", address, phone, zone_name, delivery_cost }` from the order's `shipping_address`/booking (requests: from the cart and booking); keep old stored notification data renderable (retry job) by treating a missing `fulfillment` as pickup
-- [ ] T039 [US5] Templates `apps/backend/src/lib/emails/templates/order.ts`, `request.ts`, `pickup.ts` (+ staff templates): subjects and wording by method per contracts/emails.md; delivery cost line before the total; reminder "Jutro dostawa…" with "kierowca zadzwoni pod numer {phone}"; template ids unchanged (research R-10)
+- [X] T038 [US5] `apps/backend/src/lib/emails/data.ts` + `types.ts`: replace `pickup_address` with `fulfillment: { method: "pickup", address } | { method: "delivery", address, phone, zone_name, delivery_cost }` from the order's `shipping_address`/booking (requests: from the cart and booking); keep old stored notification data renderable (retry job) by treating a missing `fulfillment` as pickup
+- [X] T039 [US5] Templates `apps/backend/src/lib/emails/templates/order.ts`, `request.ts`, `pickup.ts` (+ staff templates): subjects and wording by method per contracts/emails.md; delivery cost line before the total; reminder "Jutro dostawa…" with "kierowca zadzwoni pod numer {phone}"; template ids unchanged (research R-10)
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T040 [P] `apps/backend/AGENTS.md`: replace "Fulfillment — in-person pickup only" with pickup + delivery (option `type.code`, `shipping_address` for delivery only, quote route, calculated option, pricing hook, setup names), extend "Cart completion errors" with the §7 messages, link specs/007 contracts
-- [ ] T041 [P] `specs/004-pickup-scheduling/spec.md`: one-line note under FR-011 that delivery is offered since 007 (constitution 2.4.x)
-- [ ] T042 [P] `docs/do-omowienia-z-managerem.md` section 4: quote the exact customer-facing texts as implemented (out-of-zone message, §7 errors, e-mail subjects) with their file paths; keep the defaults table in sync with `setup-delivery.ts`
+- [X] T040 [P] `apps/backend/AGENTS.md`: replace "Fulfillment — in-person pickup only" with pickup + delivery (option `type.code`, `shipping_address` for delivery only, quote route, calculated option, pricing hook, setup names), extend "Cart completion errors" with the §7 messages, link specs/007 contracts
+- [X] T041 [P] `specs/004-pickup-scheduling/spec.md`: one-line note under FR-011 that delivery is offered since 007 (constitution 2.4.x)
+- [X] T042 [P] `docs/do-omowienia-z-managerem.md` section 4: quote the exact customer-facing texts as implemented (out-of-zone message, §7 errors, e-mail subjects) with their file paths; keep the defaults table in sync with `setup-delivery.ts`
 - [ ] T043 Run `pnpm run lint`, `pnpm run typecheck`, `pnpm run test:unit`, then `pnpm run test:integration` against the dev DB; walk through quickstart V1–V9 on `pnpm dev`; note results in the PR description (constitution VI)
 
 ---

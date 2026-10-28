@@ -371,6 +371,90 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("US3 — an address outside every zone goes to the kitchen", () => {
+      const sendRequest = (cartId: string) =>
+        api.post("/store/catering/requests", { cart_id: cartId }, { headers }).catch(asResponse)
+      const requestOf = async (cartId: string) =>
+        (await api.get(`/store/catering/requests/${cartId}`, { headers })).data.request
+      const confirm = async (id: string, body?: Record<string, unknown>) =>
+        api
+          .post(`/admin/catering/requests/${id}/confirm`, body ?? {}, { headers: await adminHeaders() })
+          .catch(asResponse)
+      const bookingOf = async (cartId: string) =>
+        (await catering().listBookings({ cart_id: cartId, requires_confirmation: true }))[0]
+
+      it("sends an out-of-zone cart on a standard window and pays the confirmed cost", async () => {
+        const cartId = await createDeliveryCart("34-500")
+        const sent = await sendRequest(cartId)
+        expect(sent.status).toEqual(200)
+        expect(sent.data.request.fulfillment).toEqual({
+          method: "delivery",
+          postal_code: "34-500",
+          out_of_zone: true,
+          delivery_cost: null,
+        })
+
+        // not payable before the kitchen confirms
+        await expectRefused(cartId, "Dostawa pod ten adres wymaga potwierdzenia kuchni — wyślij zapytanie.")
+
+        const booking = await bookingOf(cartId)
+        const { data } = await api.get("/admin/catering/requests?status=requested", {
+          headers: await adminHeaders(),
+        })
+        expect(data.requests.find((r: { id: string }) => r.id === booking.id).fulfillment).toEqual(
+          expect.objectContaining({
+            method: "delivery",
+            address: "ul. Przykładowa 5/2, 34-500 Kraków",
+            phone: "+48 600 000 000",
+            out_of_zone: true,
+            zone_name: null,
+          })
+        )
+
+        const missing = await confirm(booking.id)
+        expect(missing.status).toEqual(400)
+        expect(missing.data.message).toEqual("Podaj koszt dostawy.")
+
+        expect((await confirm(booking.id, { delivery_cost: 80 })).status).toEqual(200)
+        expect((await requestOf(cartId)).fulfillment.delivery_cost).toEqual(80)
+        expect((await getCart(cartId)).shipping_total).toEqual(80)
+
+        await pay(cartId)
+        const placed = await complete(cartId)
+        expect(placed.data.type).toEqual("order")
+        expect(placed.data.order.shipping_total).toEqual(80)
+      })
+
+      it("refuses a delivery cost for an in-zone request", async () => {
+        const term = await firstWindow("delivery")
+        const [zone] = await catering().listDeliveryZones({ name: "Strefa 1" })
+        const booking = await catering().createBookings({
+          cart_id: "cart_in_zone",
+          fulfillment_method: "delivery",
+          date: term.date,
+          start_time: term.start,
+          end_time: term.end,
+          status: "requested",
+          requires_confirmation: true,
+          response_deadline: new Date(Date.now() + 3_600_000),
+          delivery_postal_code: "31-763",
+          delivery_zone_id: zone.id,
+          delivery_zone_name: zone.name,
+        })
+        const refused = await confirm(booking.id, { delivery_cost: 80 })
+        expect(refused.status).toEqual(400)
+        expect(refused.data.message).toEqual("Koszt dostawy podaje się tylko dla dostawy spoza stref.")
+      })
+
+      it("refuses payment after the postal code changed", async () => {
+        const cartId = await createDeliveryCart("34-500")
+        await sendRequest(cartId)
+        await confirm((await bookingOf(cartId)).id, { delivery_cost: 80 })
+        await api.post(`/store/carts/${cartId}`, { shipping_address: address("34-501") }, { headers })
+        await expectRefused(cartId, "Zamówienie różni się od wysłanego zapytania — skontaktuj się z nami.")
+      })
+    })
+
     describe("US4 — delivery has its own schedule", () => {
       type Window = { start: string; end: string; available: boolean; reason: string | null }
       const dayOf = async (method: "pickup" | "delivery", date: string) => {

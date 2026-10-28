@@ -156,3 +156,112 @@ describe("e-mail templates (unit)", () => {
     expect(() => renderTemplate("nope", order)).toThrow(/Unknown e-mail template/)
   })
 })
+
+// spec 007 — delivery orders and requests (contracts/emails.md)
+describe("delivery e-mails (unit)", () => {
+  const delivery = {
+    method: "delivery" as const,
+    address: { address_1: "ul. Przykładowa 5/2", postal_code: "31-870", city: "Kraków", phone: "+48 600 000 000" },
+    zone_name: "Strefa 1",
+    out_of_zone: false,
+    delivery_cost: 30,
+  }
+  const deliveryOrder: OrderEmailData = { ...order, fulfillment: delivery }
+  const deliveryRequest: RequestEmailData = { ...request, fulfillment: delivery }
+  const outOfZone: RequestEmailData = {
+    ...request,
+    fulfillment: { ...delivery, zone_name: null, out_of_zone: true, delivery_cost: null },
+  }
+  const ADDRESS = "ul. Przykładowa 5/2, 31-870 Kraków"
+  const VENUE = "Gustawa Morcinka"
+
+  const expectDelivery = (email: { html: string; text: string }) => {
+    expect(email.text).toContain(`Adres dostawy: ${ADDRESS}`)
+    expect(email.text).not.toContain(VENUE)
+    expect(email.text).not.toContain("Adres odbioru")
+    expect(email.html).not.toContain("google.com/maps")
+  }
+
+  it("order confirmation: window, address, phone, cost line before the total", () => {
+    const email = renderTemplate("order-confirmation", deliveryOrder)
+    expect(email.subject).toEqual("Potwierdzenie zamówienia nr 42")
+    expectDelivery(email)
+    expect(email.text).toContain("Dostawa: pt 30.10.2026, 10:00–11:00")
+    expect(email.text).toContain("Telefon: +48 600 000 000")
+    expect(email.text).toContain("Dostawa: 30,00 zł\nRazem: 394,00 zł")
+    expect(email.text).toContain("Dowieziemy je pod wskazany adres")
+  })
+
+  it("free delivery reads as gratis", () => {
+    const email = renderTemplate("order-confirmation", {
+      ...deliveryOrder,
+      fulfillment: { ...delivery, delivery_cost: 0 },
+    })
+    expect(email.text).toContain("Dostawa: gratis\nRazem: 364,00 zł")
+  })
+
+  it("request e-mails name the delivery; out of zone the cost comes with the confirmation", () => {
+    const created = renderTemplate("request-created", outOfZone)
+    expect(created.subject).toEqual("Otrzymaliśmy zapytanie o dostawę pt 30.10.2026")
+    expectDelivery(created)
+    expect(created.text).toContain("Koszt dostawy podamy razem z potwierdzeniem.")
+    expect(created.text).toContain("Razem (bez dostawy): 364,00 zł")
+
+    const confirmed = renderTemplate("request-confirmed", { ...outOfZone, fulfillment: { ...outOfZone.fulfillment!, delivery_cost: 80 } as never })
+    expect(confirmed.subject).toMatch(/^Kuchnia potwierdziła dostawę pt 30\.10\.2026 — zapłać do /)
+    expect(confirmed.text).toContain("Dostawa: 80,00 zł\nRazem: 444,00 zł")
+
+    for (const name of ["request-declined", "request-expired", "request-canceled"] as const) {
+      expectDelivery(renderTemplate(name, deliveryRequest))
+    }
+    expect(renderTemplate("request-expired", deliveryRequest).subject).toEqual(
+      "Zapytanie o dostawę pt 30.10.2026 wygasło"
+    )
+  })
+
+  it("reschedule, cancellation and the reminder speak about delivery", () => {
+    const moved = renderTemplate("pickup-rescheduled", {
+      ...deliveryOrder,
+      previous_term: { date: "2026-10-29", start: "12:00", end: "14:00" },
+    })
+    expect(moved.subject).toEqual("Zmiana terminu dostawy: pt 30.10.2026")
+    expect(moved.text).toContain("Zmieniliśmy termin dostawy zamówienia nr 42.")
+    expectDelivery(moved)
+
+    expect(renderTemplate("order-canceled", deliveryOrder).text).toContain(
+      "Zamówienie nr 42 z dostawą na pt 30.10.2026, 10:00–11:00 zostało anulowane."
+    )
+
+    const reminder = renderTemplate("pickup-reminder", deliveryOrder)
+    expect(reminder.subject).toEqual("Jutro dostawa zamówienia nr 42")
+    expectDelivery(reminder)
+    expect(reminder.text).toContain("Kierowca zadzwoni pod numer +48 600 000 000.")
+    expect(reminder.text).not.toContain("Jak dojechać")
+  })
+
+  it("staff e-mails carry the address, the zone or out of zone, and the cost", () => {
+    const staff = renderTemplate("staff-new-order", deliveryOrder)
+    expect(staff.subject).toEqual("Nowe zamówienie nr 42 — dostawa pt 30.10.2026 10:00–11:00")
+    expect(staff.text).toContain("Strefa: Strefa 1")
+    expect(staff.text).toContain("Dostawa: 30,00 zł")
+    expect(staff.text).toContain(ADDRESS)
+
+    for (const name of ["staff-new-request", "staff-request-reminder"] as const) {
+      expect(renderTemplate(name, outOfZone).text).toContain(
+        "Strefa: poza strefą — podaj koszt dostawy przy potwierdzeniu"
+      )
+    }
+  })
+
+  it("keeps pickup e-mails unchanged when fulfillment is absent or pickup", () => {
+    for (const name of Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]) {
+      const data = name.startsWith("request") || name.startsWith("staff-request") || name === "staff-new-request"
+        ? request
+        : { ...order, previous_term: base.term }
+      expect(renderTemplate(name, { ...data, fulfillment: { method: "pickup" } })).toEqual(
+        renderTemplate(name, data)
+      )
+    }
+  })
+})
+

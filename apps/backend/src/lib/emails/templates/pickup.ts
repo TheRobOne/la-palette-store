@@ -3,6 +3,9 @@ import {
   addressBlock,
   button,
   contactBlock,
+  deliveryAddressBlocks,
+  deliveryOf,
+  deliveryTermBlock,
   field,
   heading,
   itemsBlock,
@@ -14,7 +17,8 @@ import {
 import type { OrderEmailData, RenderedEmail, RescheduledEmailData } from "../types"
 
 /**
- * Pickup changes and reminders (spec 006 US4, US5; contracts/emails.md).
+ * Pickup changes and reminders (spec 006 US4, US5; contracts/emails.md);
+ * delivery wording and address for delivery orders (spec 007).
  */
 
 const termText = (term: { date: string; start: string; end: string }) =>
@@ -29,15 +33,17 @@ const mapUrl = (data: OrderEmailData) =>
 /** Staff moved the pickup term of an order or of a not-yet-paid request. */
 export function pickupRescheduled(data: RescheduledEmailData): RenderedEmail {
   const isOrder = "display_id" in data
-  return render(`Zmiana terminu odbioru: ${formatDate(data.term.date)}`, [
+  const delivery = deliveryOf(data)
+  const what = delivery ? "termin dostawy" : "termin odbioru"
+  return render(`Zmiana terminu ${delivery ? "dostawy" : "odbioru"}: ${formatDate(data.term.date)}`, [
     paragraph(
       isOrder
-        ? `Zmieniliśmy termin odbioru zamówienia nr ${data.display_id}.`
-        : "Zmieniliśmy termin odbioru w Twoim zapytaniu."
+        ? `Zmieniliśmy ${what} zamówienia nr ${data.display_id}.`
+        : `Zmieniliśmy ${what} w Twoim zapytaniu.`
     ),
     field("Poprzedni termin:", termText(data.previous_term)),
     field("Nowy termin:", termText(data.term)),
-    addressBlock(data.pickup_address),
+    ...(delivery ? deliveryAddressBlocks(delivery) : [addressBlock(data.pickup_address)]),
     paragraph("Jeśli nowy termin Ci nie odpowiada, odpowiedz na tę wiadomość albo zadzwoń."),
     ...(!isOrder && data.links.request_status
       ? [link("Sprawdź status zapytania", data.links.request_status)]
@@ -52,7 +58,9 @@ export function pickupRescheduled(data: RescheduledEmailData): RenderedEmail {
  */
 export function orderCanceled(data: OrderEmailData): RenderedEmail {
   return render(`Zamówienie nr ${data.display_id} zostało anulowane`, [
-    paragraph(`Zamówienie nr ${data.display_id} na ${termText(data.term)} zostało anulowane.`),
+    paragraph(
+      `Zamówienie nr ${data.display_id} ${deliveryOf(data) ? "z dostawą " : ""}na ${termText(data.term)} zostało anulowane.`
+    ),
     paragraph(
       "Jeśli zamówienie było opłacone, zwrócimy pieniądze tą samą metodą płatności, " +
         "najpóźniej w ciągu 14 dni."
@@ -64,8 +72,22 @@ export function orderCanceled(data: OrderEmailData): RenderedEmail {
   ])
 }
 
-/** The day before the pickup (US5). */
+/** The day before the pickup (US5) or the delivery (spec 007: no map, the driver calls). */
 export function pickupReminder(data: OrderEmailData): RenderedEmail {
+  const delivery = deliveryOf(data)
+  if (delivery) {
+    return render(`Jutro dostawa zamówienia nr ${data.display_id}`, [
+      paragraph(`Przypominamy: jutro dowozimy zamówienie nr ${data.display_id}.`),
+      deliveryTermBlock(data.term),
+      ...deliveryAddressBlocks(delivery),
+      ...(delivery.address.phone
+        ? [paragraph(`Kierowca zadzwoni pod numer ${delivery.address.phone}.`)]
+        : []),
+      heading("Produkty"),
+      itemsBlock(data.items, data.total, delivery.delivery_cost),
+      contactBlock(data.pickup_address),
+    ])
+  }
   return render(`Jutro odbiór zamówienia nr ${data.display_id}`, [
     paragraph(`Przypominamy: jutro odbierasz zamówienie nr ${data.display_id}.`),
     termBlock(data.term),

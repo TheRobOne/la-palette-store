@@ -28,6 +28,13 @@ export const AdminDeliveryZoneBody = z.object({
 })
 export type AdminDeliveryZoneBodyType = z.infer<typeof AdminDeliveryZoneBody>
 
+/** Confirming a request (005); `delivery_cost` only for an out-of-zone delivery (spec 007). */
+export const AdminConfirmRequestBody = z
+  .object({ delivery_cost: amount.optional() })
+  .optional()
+  .default({})
+export type AdminConfirmRequestBodyType = z.infer<typeof AdminConfirmRequestBody>
+
 export const AdminDeliveryZoneMatchQuery = z.object({
   postal_code: z.string(),
 })
