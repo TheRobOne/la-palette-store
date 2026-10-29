@@ -115,6 +115,10 @@ Zapytania spoza stref przyjmujemy z całej Polski.
   Krakowa i gminach wokół lokalu; manager/kuchnia przeglądają i zatwierdzają, obsługa wkleja je
   w panelu. Prostszy start: Strefa 1 = najbliższe okolice, Strefa 2 = cały Kraków, reszta na
   zapytanie. Który wariant?
+- **Gotowa propozycja z OpenStreetMap**: pierścienie do 5 km (182 kody) i 5–10 km (438 kodów)
+  wokół lokalu, z raportem kodów granicznych — [strefy-dostawy/](strefy-dostawy/README.md).
+  Do decyzji: wiejskie kody 32-010, 32-091, 32-086, 32-087 obejmują całe gminy (bliskie
+  Raciborowice i dalekie wsie mają ten sam kod), więc są w całości w strefie 5–10 km.
 - Czy któraś strefa ma wyższą minimalną wartość zamówienia niż 100 zł?
 
 | Ustawienie | Domyślnie | Decyzja |
