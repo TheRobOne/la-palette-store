@@ -79,6 +79,8 @@ export type PickupRequest = {
   email: string | null
   item_total: number | null
   items: { title: string | null; quantity: number }[]
+  /** discount codes: codes and the gross amount off (products and delivery) */
+  discount: { codes: string[]; amount: number } | null
   decided_at: string | null
   order_id: string | null
   // spec 007: address/phone null for pickup; out_of_zone = staff set the delivery cost

@@ -217,6 +217,35 @@ Full contract: [specs/005-on-request-terms/contracts/store-api.md](../../specs/0
   `specs/005-on-request-terms/contracts/admin-api.md`.
 - Events `catering.request.created|confirmed|declined|expired|canceled` drive the customer and staff e-mails (spec 006, "Transactional e-mails" below).
 
+### Discount codes
+
+Medusa's own Promotion module and Store API; staff create codes in Admin → Promotions. Decisions
+and the manager's how-to: `docs/do-omowienia-z-managerem.md` §5.
+
+- Apply: `POST /store/carts/:id/promotions { "promo_codes": ["WESELE30"] }` → `{ cart }`.
+  Remove: `DELETE /store/carts/:id/promotions` with the same body → `{ cart }`.
+- **Codes are case-sensitive.** Staff create them in capitals; the shop sends the code upper-cased
+  first, then as typed.
+- Unknown, expired or used-up code → **400** `{ "type": "invalid_data", "message": "The promotion code X is invalid" }`
+  (English — the shop shows its own Polish text).
+- A code whose conditions the cart does not meet (e.g. its minimum cart value) → **200**, the code
+  is silently left out: check that it is in `cart.promotions`. When the cart later falls below the
+  minimum, Medusa drops the discount on the next cart update.
+- Totals: `item_total` is after discounts (the store minimum, zone minimum and free-delivery
+  threshold compare against it), `original_item_total` and `items[].original_total` before.
+  Request `original_item_total` and `*promotions` in `fields`.
+- Amounts are gross: `src/workflows/hooks/promotions-created.ts` makes every new promotion
+  `is_tax_inclusive` (otherwise a 20 zł code takes 21,60 zł off at 8% VAT).
+- Minimum cart value of a code: a promotion rule `original_item_total gte X` — Medusa evaluates
+  promotion rules against the cart, but the Admin offers no such condition, so it is set in the
+  promotion page widget (`src/admin/widgets/promotion-min-order-value.tsx`) through
+  `GET|POST /admin/catering/promotions/:id/min-order-value { "min_order_value": 300 | null }`
+  (`src/lib/promotion-min-order-value.ts`). The standard "Conditions" section skips the rule.
+- On-request terms: the code stays on the request's cart; if it expires before the payment the
+  customer pays without it (the request snapshot compares items, term and postal code, not totals).
+- E-mails show items before the discount, a `Rabat (KOD): −X zł` line and the total after it; the
+  Admin requests list shows the codes and the amount (`src/lib/discount.ts`).
+
 ### Cart completion errors — `POST /store/carts/:id/complete`
 
 Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler

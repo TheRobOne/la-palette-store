@@ -66,7 +66,7 @@ export function orderCanceled(data: OrderEmailData): RenderedEmail {
         "najpóźniej w ciągu 14 dni."
     ),
     heading("Anulowane produkty"),
-    itemsBlock(data.items, data.total),
+    itemsBlock(data),
     link("Przejdź do sklepu", data.links.shop),
     contactBlock(data.pickup_address),
   ])
@@ -84,7 +84,7 @@ export function pickupReminder(data: OrderEmailData): RenderedEmail {
         ? [paragraph(`Kierowca zadzwoni pod numer ${delivery.address.phone}.`)]
         : []),
       heading("Produkty"),
-      itemsBlock(data.items, data.total, delivery.delivery_cost),
+      itemsBlock(data, delivery.delivery_cost),
       contactBlock(data.pickup_address),
     ])
   }
@@ -94,7 +94,7 @@ export function pickupReminder(data: OrderEmailData): RenderedEmail {
     addressBlock(data.pickup_address),
     button("Jak dojechać", mapUrl(data)),
     heading("Produkty"),
-    itemsBlock(data.items, data.total),
+    itemsBlock(data),
     contactBlock(data.pickup_address),
   ])
 }

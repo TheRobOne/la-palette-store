@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framew
 import { CATERING_MODULE } from "../../modules/catering"
 import type CateringModuleService from "../../modules/catering/service"
 import { parseTerm } from "../../modules/catering/scheduling/term"
+import { DISCOUNT_FIELDS, discountOf, type DiscountSource } from "../discount"
 import { INVOICE_NIP_METADATA_KEY, isInvoiceRequested } from "../invoice-metadata"
 import { findOrderBooking } from "../order-booking"
 import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../pickup"
@@ -28,6 +29,7 @@ type LineLike = {
   variant_title?: string | null
   quantity?: unknown
   total?: unknown
+  original_total?: unknown
 }
 
 type AddressLike = {
@@ -40,13 +42,12 @@ type AddressLike = {
   city?: string | null
 } | null
 
-type Purchase = {
+type Purchase = DiscountSource & {
   email?: string | null
-  item_total?: unknown
   metadata?: Record<string, unknown> | null
   billing_address?: AddressLike
   shipping_address?: AddressLike
-  items?: LineLike[] | null
+  items?: (LineLike & NonNullable<DiscountSource["items"]>[number])[] | null
 }
 
 type BookingLike = {
@@ -58,7 +59,7 @@ type BookingLike = {
 
 const PURCHASE_FIELDS = [
   "email",
-  "item_total",
+  ...DISCOUNT_FIELDS,
   "metadata",
   "billing_address.first_name",
   "billing_address.last_name",
@@ -76,6 +77,7 @@ const PURCHASE_FIELDS = [
   "items.variant_title",
   "items.quantity",
   "items.total",
+  "items.original_total",
 ]
 
 const num = (value: unknown) => Number(value ?? 0)
@@ -97,7 +99,8 @@ function items(lines: LineLike[] | null | undefined): EmailItem[] {
       // Medusa's single-variant products are called "Default variant"
       variant_title: variant && !/^default/i.test(variant) ? variant : null,
       quantity: num(line.quantity),
-      total: num(line.total),
+      // before discounts: the e-mail shows the discount as its own line
+      total: num(line.original_total ?? line.total),
     }
   })
 }
@@ -174,6 +177,7 @@ function common(
     term,
     items: items(purchase.items),
     total: num(purchase.item_total),
+    discount: discountOf(purchase),
     pickup_address: address,
     fulfillment: fulfillment(purchase, booking),
     contact: contact(purchase),

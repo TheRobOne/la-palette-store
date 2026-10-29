@@ -147,6 +147,9 @@ const PickupRequestsPage = () => {
               </div>
               <Text size="small" className="text-ui-fg-subtle">
                 {r.email ?? "—"} · {formatPln(r.item_total)}
+                {r.discount
+                  ? ` (rabat${r.discount.codes.length ? ` ${r.discount.codes.join(", ")}` : ""}: −${formatPln(r.discount.amount)})`
+                  : ""}
               </Text>
               {r.fulfillment.method === "delivery" ? (
                 <Text size="small">

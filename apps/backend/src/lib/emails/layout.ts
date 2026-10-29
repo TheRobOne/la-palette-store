@@ -85,17 +85,21 @@ export const deliveryAddressBlocks = (delivery: DeliveryFulfillment): Block[] =>
 ]
 
 /**
- * Items with quantities and gross line totals, then the total. With a
- * delivery (`deliveryCost` not undefined) a "Dostawa" line comes before the
- * total, which then includes it; a cost not set yet (out of zone, null) is
- * shown as pending and the total is the products only.
+ * Items with quantities and gross line totals, then the total. Discount codes
+ * (discount codes) are a "Rabat" line after the items, which then show prices before
+ * the discount. With a delivery (`deliveryCost` not undefined) a "Dostawa"
+ * line comes before the total, which then includes it; a cost not set yet
+ * (out of zone, null) is shown as pending and the total is the products only.
  */
 export function itemsBlock(
-  items: EmailItem[],
-  total: number,
+  data: Pick<EmailOrderData, "items" | "total" | "discount">,
   deliveryCost?: number | null
 ): Block {
+  const { items, total, discount } = data
   const name = (i: EmailItem) => (i.variant_title ? `${i.title} (${i.variant_title})` : i.title)
+  const row = (label: string, amount: string) =>
+    `<tr><td style="padding:6px 0;border-bottom:1px solid ${BRAND.border}" colspan="2">${escapeHtml(label)}</td>` +
+    `<td style="padding:6px 0;border-bottom:1px solid ${BRAND.border};text-align:right;white-space:nowrap">${escapeHtml(amount)}</td></tr>`
   const rows = items
     .map(
       (i) =>
@@ -104,6 +108,17 @@ export function itemsBlock(
         `<td style="padding:6px 0;border-bottom:1px solid ${BRAND.border};text-align:right;white-space:nowrap">${escapeHtml(formatAmount(i.total))}</td></tr>`
     )
     .join("")
+  // the delivery line shows the cost before a delivery discount
+  const shippingDiscount =
+    deliveryCost !== undefined && deliveryCost !== null ? (discount?.shipping_amount ?? 0) : 0
+  const discountAmount = (discount?.items_amount ?? 0) + shippingDiscount
+  const discountLine =
+    discount && discountAmount > 0
+      ? {
+          label: discount.codes.length ? `Rabat (${discount.codes.join(", ")})` : "Rabat",
+          amount: `−${formatAmount(discountAmount)}`,
+        }
+      : null
   const delivery =
     deliveryCost === undefined
       ? null
@@ -112,20 +127,19 @@ export function itemsBlock(
         : deliveryCost === 0
           ? "gratis"
           : formatAmount(deliveryCost)
-  const sum = total + (deliveryCost ?? 0)
+  const sum = total + (deliveryCost ?? 0) - shippingDiscount
   const totalLabel = deliveryCost === null ? "Razem (bez dostawy)" : "Razem"
   return {
     html:
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px">` +
       rows +
-      (delivery
-        ? `<tr><td style="padding:6px 0;border-bottom:1px solid ${BRAND.border}" colspan="2">Dostawa</td>` +
-          `<td style="padding:6px 0;border-bottom:1px solid ${BRAND.border};text-align:right;white-space:nowrap">${escapeHtml(delivery)}</td></tr>`
-        : "") +
+      (discountLine ? row(discountLine.label, discountLine.amount) : "") +
+      (delivery ? row("Dostawa", delivery) : "") +
       `<tr><td style="padding:8px 0" colspan="2"><strong>${totalLabel}</strong></td>` +
       `<td style="padding:8px 0;text-align:right;white-space:nowrap"><strong>${escapeHtml(formatAmount(sum))}</strong></td></tr></table>`,
     text:
       items.map((i) => `- ${name(i)} × ${i.quantity}: ${formatAmount(i.total)}`).join("\n") +
+      (discountLine ? `\n${discountLine.label}: ${discountLine.amount}` : "") +
       (delivery ? `\nDostawa: ${delivery}` : "") +
       `\n${totalLabel}: ${formatAmount(sum)}`,
   }
@@ -142,14 +156,14 @@ export const orderSummary = (data: EmailOrderData): Block[] => {
       deliveryTermBlock(data.term),
       ...deliveryAddressBlocks(delivery),
       heading("Produkty"),
-      itemsBlock(data.items, data.total, delivery.delivery_cost),
+      itemsBlock(data, delivery.delivery_cost),
     ]
   }
   return [
     termBlock(data.term),
     addressBlock(data.pickup_address),
     heading("Produkty"),
-    itemsBlock(data.items, data.total),
+    itemsBlock(data),
   ]
 }
 
