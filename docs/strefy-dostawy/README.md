@@ -1,14 +1,16 @@
-# Strefy dostawy — propozycja kodów pocztowych
+# Strefy dostawy — kody pocztowe
 
-Propozycja dwóch stref wokół lokalu (ul. Gustawa Morcinka 40, Kraków), wygenerowana
-29.10.2026 z OpenStreetMap. To **materiał do zatwierdzenia** przez managera/kuchnię
-(zob. [do-omowienia-z-managerem.md §4.1](../do-omowienia-z-managerem.md)) — nie dane wczytywane
-automatycznie. Strefy i ich kody wpisuje się w Adminie: Ustawienia → Strefy dostawy.
+Docelowe strefy wokół lokalu (ul. Gustawa Morcinka 40, Kraków), wygenerowane 29.10.2026
+z OpenStreetMap: **„Strefa 1 (do 5 km)” — 30 zł** i **„Strefa 2 (5–10 km)” — 50 zł**. Sklep
+zakłada je przy pierwszym uruchomieniu w każdym środowisku (dane:
+`apps/backend/src/scripts/data/delivery-zones.ts`, wygenerowane z plików poniżej). Potem to dane
+w Adminie (Ustawienia → Strefy dostawy) — zmiany robi obsługa, a te pliki nie są wczytywane
+ponownie.
 
 | Plik | Zawartość |
 |---|---|
 | `strefa-do-5km.txt` | 182 kody, jeden w linii — do wklejenia w pole „Kody pocztowe” |
-| `strefa-5-10km.txt` | 438 kodów, jak wyżej |
+| `strefa-5-10km.txt` | 437 kodów, jak wyżej |
 | `raport-kodow.csv` | każdy kod z adresami do 10 km: decyzja, liczba adresów w OSM, odległość min / mediana / max, udział adresów do 5 i do 10 km, miejscowość (separator `;`) |
 
 ## Metoda
@@ -22,7 +24,7 @@ automatycznie. Strefy i ich kody wpisuje się w Adminie: Ustawienia → Strefy d
   5 lub 10 km — do świadomej decyzji.
 - Pominięte: kody z mniej niż 3 adresami w OSM (możliwe literówki; część to prawdopodobnie
   prawdziwe kody pojedynczych budynków, np. w Nowej Hucie) oraz ręcznie usunięte 33-332 i 32-067
-  (kody z innych rejonów, błędnie wpisane w OSM).
+  (kody z innych rejonów, błędnie wpisane w OSM) i 30-001 (zob. niżej).
 
 ## Ograniczenia
 
@@ -33,8 +35,7 @@ automatycznie. Strefy i ich kody wpisuje się w Adminie: Ustawienia → Strefy d
 - **Linia prosta**, nie trasa przejazdu (dłuższa np. przez Wisłę).
 - Adres, którego kodu nie ma na żadnej liście, idzie „na zapytanie” — kuchnia potwierdza
   i podaje koszt, więc braki nie powodują strat.
-- 30-001 (z przykładowej „Strefy 2” w seedzie) jest w OSM rozrzucony po całym mieście — nie
-  używać go w prawdziwych strefach.
+- 30-001 jest w OSM rozrzucony po całym mieście (3–18 km), więc go usunięto.
 
 ## Odtworzenie
 
@@ -47,7 +48,8 @@ curl -s --data-urlencode 'data=<zapytanie wyżej>' https://overpass-api.de/api/i
 # 2. statystyki per kod, 3. podział na strefy (zapisuje pliki w katalogu docelowym)
 python3 -I scripts/rings.py osm20.json codes20.json
 python3 -I scripts/classify.py codes20.json <katalog>
-# 4. usunąć ręcznie 33-332 i 32-067 (błędy OSM, zob. wyżej)
+# 4. usunąć ręcznie 33-332, 32-067 i 30-001 (zob. wyżej), potem zaktualizować
+#    apps/backend/src/scripts/data/delivery-zones.ts (dotyczy tylko nowych baz)
 ```
 
 Dane: © OpenStreetMap contributors, ODbL 1.0.

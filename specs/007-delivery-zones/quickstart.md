@@ -3,7 +3,11 @@
 ## Prerequisites
 
 - Backend on this branch; `medusa db:migrate` and seed run (`pnpm dev` runs both) — setup
-  creates the "Dostawa" option, the delivery schedule and the two example zones (research R-11).
+  creates the "Dostawa" option, the delivery schedule and the two zones "Strefa 1 (do 5 km)" and
+  "Strefa 2 (5–10 km)" (research R-11). The scenarios below use the test zones of the
+  integration tests (`integration-tests/helpers/delivery-zones.ts`); on a seeded database use a
+  code from `docs/strefy-dostawy/` instead (e.g. 31-763 → Strefa 1, 50 zł codes from the 5–10 km
+  list).
 - Admin user; publishable API key for Store calls.
 - Integration tests: dev PostgreSQL (README "Integration tests"):
   `pnpm run test:integration:http -- integration-tests/http/delivery.spec.ts`; existing

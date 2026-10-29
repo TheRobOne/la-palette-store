@@ -173,10 +173,11 @@ the `delivery` schedule row (max 2 per window, lead time 48 h, windows 10–12, 
 16–18 on the pickup weekdays) and the two example zones — each created only if missing, never
 overwritten. The "non-pickup option" warning in `setup-pickup.ts` is removed.
 
-*Amended after code review (PR #10)*: `seed.ts` runs on every deploy, so the example zones are
-created only together with the schedule (deleting them sticks), and with `APP_ENV=production`
-the schedule starts disabled and no example zones are created — staff enter the real zones and
-then enable delivery in the Admin.
+*Amended after code review (PR #10)*: `seed.ts` runs on every deploy, so the zones are created
+only together with the schedule (deleting them sticks). *Amended 2026-10-29*: the example zones
+are replaced by the final ones — rings up to 5 km (30 zł) and 5–10 km (50 zł) around the venue,
+from OpenStreetMap (`docs/strefy-dostawy/`, data in `src/scripts/data/delivery-zones.ts`) —
+created in every environment, production included, with delivery enabled.
 
 ## R-12 — Enum migration
 

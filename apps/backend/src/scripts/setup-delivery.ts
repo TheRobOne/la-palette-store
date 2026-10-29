@@ -7,14 +7,14 @@
  *               └─ shipping option "Dostawa", calculated by catering-delivery
  *
  * plus the delivery schedule (lead time 48 h, max 2 deliveries per window,
- * two-hour windows 10:00–18:00 on the pickup weekdays) and two example zones.
+ * two-hour windows 10:00–18:00 on the pickup weekdays) and the two initial
+ * zones (data/delivery-zones.ts: up to 5 km — 30 zł, 5–10 km — 50 zł).
  * Zones decide the price, not Medusa geo zones (research R-01), so the
  * service zone covers all of Poland. Everything is created only if missing
- * and staff changes are never overwritten. The example zones are created
- * only together with the schedule (first run), so deleting them sticks; with
- * APP_ENV=production the schedule starts disabled and gets no example zones
- * (seed.ts runs on every deploy). Called from seed.ts after the pickup setup;
- * can also run on its own:
+ * and staff changes are never overwritten. The zones are created only
+ * together with the schedule (first run, in every environment), so zones
+ * staff delete stay deleted (seed.ts runs on every deploy). Called from
+ * seed.ts after the pickup setup; can also run on its own:
  *
  *   npx medusa exec ./src/scripts/setup-delivery.ts
  */
@@ -38,6 +38,7 @@ import {
 } from "../lib/pickup"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
+import { INITIAL_DELIVERY_ZONES } from "./data/delivery-zones"
 import { resolveDefaultShippingProfileId } from "./setup-pickup"
 
 const COUNTRY_CODE = "pl"
@@ -51,18 +52,10 @@ const DEFAULT_WINDOWS = [
   ["16:00", "18:00"],
 ] as const
 
-/** Example zones for testing until staff enter the real ones (spec Assumptions). */
-const EXAMPLE_ZONES = [
-  { name: "Strefa 1", price: 30, codes: ["31-762", "31-763", "31-764", "32-005", "32-010", "32-020"] },
-  { name: "Strefa 2", price: 50, codes: ["30-001", "31-001"] },
-]
-
 export async function setupDelivery(container: MedusaContainer) {
-  const production = process.env.APP_ENV === "production"
   await setupDeliveryShippingOption(container)
-  const firstRun = await setupDeliverySchedule(container, { enabled: !production })
-  if (firstRun && !production) {
-    await setupExampleZones(container)
+  if (await setupDeliverySchedule(container)) {
+    await setupInitialZones(container)
   }
 }
 
@@ -171,10 +164,7 @@ async function setupDeliveryShippingOption(container: MedusaContainer) {
 }
 
 /** Returns true when the schedule was created by this run. */
-async function setupDeliverySchedule(
-  container: MedusaContainer,
-  { enabled }: { enabled: boolean }
-): Promise<boolean> {
+async function setupDeliverySchedule(container: MedusaContainer): Promise<boolean> {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
@@ -183,13 +173,13 @@ async function setupDeliverySchedule(
   if (!schedule) {
     await catering.createFulfillmentSchedules({
       fulfillment_method: METHOD,
-      is_enabled: enabled,
+      is_enabled: true,
       lead_time_hours: DEFAULT_LEAD_TIME_HOURS,
       booking_horizon_days: pickup?.booking_horizon_days ?? 60,
       max_orders_per_window: DEFAULT_MAX_ORDERS_PER_WINDOW,
     })
     logger.info(
-      `Created ${enabled ? "enabled" : "disabled"} delivery schedule (48 h lead time, max ${DEFAULT_MAX_ORDERS_PER_WINDOW} per window).`
+      `Created delivery schedule (48 h lead time, max ${DEFAULT_MAX_ORDERS_PER_WINDOW} per window).`
     )
   }
 
@@ -217,7 +207,7 @@ async function setupDeliverySchedule(
   return !schedule
 }
 
-async function setupExampleZones(container: MedusaContainer) {
+async function setupInitialZones(container: MedusaContainer) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
@@ -226,13 +216,15 @@ async function setupExampleZones(container: MedusaContainer) {
     logger.info("Delivery zones already configured.")
     return
   }
-  for (const zone of EXAMPLE_ZONES) {
+  for (const zone of INITIAL_DELIVERY_ZONES) {
     const created = await catering.createDeliveryZones({ name: zone.name, price: zone.price })
     await catering.createDeliveryZoneCodes(
       zone.codes.map((code) => ({ code, zone_id: created.id }))
     )
   }
-  logger.info(`Created example delivery zones (${EXAMPLE_ZONES.map((z) => z.name).join(", ")}).`)
+  logger.info(
+    `Created delivery zones (${INITIAL_DELIVERY_ZONES.map((z) => `${z.name}: ${z.codes.length} codes`).join(", ")}).`
+  )
 }
 
 export default async function run({ container }: ExecArgs) {

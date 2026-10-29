@@ -1,5 +1,5 @@
 kod;decyzja;adresow_w_OSM;min_km;mediana_km;max_km;udzial_do_5km;udzial_do_10km;miejscowosc
-30-001;5–10 km (GRANICA: część adresów dalej niż 10 km);33;3.1;8.4;17.7;3%;79%;Kraków, ?
+30-001;usunięty: w OSM rozrzucony po całym mieście (3–18 km);33;3.1;8.4;17.7;3%;79%;Kraków, ?
 30-002;5–10 km;30;8.3;8.5;8.7;0%;100%;Kraków, ?
 30-003;5–10 km;53;8.7;8.8;9.0;0%;100%;Kraków
 30-004;5–10 km;10;8.7;8.7;8.8;0%;100%;Kraków

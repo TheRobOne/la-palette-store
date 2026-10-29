@@ -1,14 +1,15 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seed from "../../src/scripts/seed"
+import { useTestDeliveryZones } from "../helpers/delivery-zones"
 import { CATERING_MODULE } from "../../src/modules/catering"
 import type CateringModuleService from "../../src/modules/catering/service"
 import { FREE_DELIVERY_THRESHOLD_METADATA_KEY } from "../../src/lib/free-delivery-threshold"
 import { addDays, warsawToday } from "../../src/modules/catering/scheduling/time"
 
 // City delivery in postal-code zones (specs/007-delivery-zones, contracts/store-api.md).
-// Seed creates "Strefa 1" (31-762, 31-763, 31-764, 32-005, 32-010, 32-020 — 30 zł) and
-// "Strefa 2" (30-001, 31-001 — 50 zł). Sample product "test-mini-tarta-cytrynowa"
+// useTestDeliveryZones replaces the seeded zones with "Strefa 1" (31-762, 31-763, 31-764,
+// 32-005, 32-010, 32-020 — 30 zł) and "Strefa 2" (30-001, 31-001 — 50 zł). Sample product "test-mini-tarta-cytrynowa"
 // costs 12 zł gross: 12 pieces = 144 zł.
 type ErrorResponse = { response: { status: number; data: { type?: string; message?: string } } }
 const asResponse = (e: ErrorResponse) => e.response
@@ -34,6 +35,7 @@ medusaIntegrationTestRunner({
       const container = getContainer()
       process.env.APP_ENV = "local"
       await seed({ container } as never)
+      await useTestDeliveryZones(container)
 
       const query = container.resolve(ContainerRegistrationKeys.QUERY)
       const { data: apiKeys } = await query.graph({
@@ -92,7 +94,11 @@ medusaIntegrationTestRunner({
 
     const getCart = async (cartId: string) => (await api.get(`/store/carts/${cartId}`, { headers })).data.cart
 
-    /** First available window of `method` in the next two weeks. */
+    /**
+     * First window of `method` on the first day in the next two weeks whose
+     * windows are all open — not a day cut by the lead time, where only the
+     * last window may be left (that depends on the time the tests run).
+     */
     const firstWindow = async (method: "pickup" | "delivery") => {
       const today = warsawToday(new Date())
       const {
@@ -101,7 +107,10 @@ medusaIntegrationTestRunner({
         `/store/catering/slots?from=${today}&to=${addDays(today, 14)}&method=${method}`,
         { headers }
       )
-      const day = slots.days.find((d: { available: boolean }) => d.available)
+      const day = slots.days.find(
+        (d: { available: boolean; windows: { available: boolean }[] }) =>
+          d.available && d.windows.every((w) => w.available)
+      )
       const window = day.windows.find((w: { available: boolean }) => w.available)
       return { method, date: day.date as string, start: window.start as string, end: window.end as string }
     }

@@ -2,6 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import seed from "../../src/scripts/seed"
+import { useTestDeliveryZones } from "../helpers/delivery-zones"
 import { CATERING_MODULE } from "../../src/modules/catering"
 import type CateringModuleService from "../../src/modules/catering/service"
 import { addDays, warsawToday } from "../../src/modules/catering/scheduling/time"
@@ -53,6 +54,7 @@ medusaIntegrationTestRunner({
       process.env.APP_ENV = "local"
       process.env.STOREFRONT_URL = "https://shop.example"
       await seed({ container } as never)
+      await useTestDeliveryZones(container)
       catering = container.resolve(CATERING_MODULE)
 
       await catering.createWindowRules(

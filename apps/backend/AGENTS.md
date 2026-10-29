@@ -106,9 +106,11 @@ Two shipping options. Setup is idempotent in `src/scripts/setup-pickup.ts` and
 `src/scripts/setup-delivery.ts` (both run by `seed.ts` on every deploy; names in
 `src/lib/pickup.ts` are lookup keys — don't rename them in the Admin). **Recognise options by
 `type.code` (`"pickup"` / `"delivery"`), never by name or list position.**
-With `APP_ENV=production` the delivery schedule is created **disabled** and without example
-zones; elsewhere the two example zones are created once, with the schedule, so deleting them
-sticks.
+The first setup (every environment, production too) creates the enabled delivery schedule and
+the two real zones from `src/scripts/data/delivery-zones.ts` ("Strefa 1 (do 5 km)" 30 zł,
+"Strefa 2 (5–10 km)" 50 zł; source and method in `docs/strefy-dostawy/`). They are created once,
+with the schedule — afterwards zones are Admin data and deleting them sticks. Integration tests
+replace them with fixed test zones (`integration-tests/helpers/delivery-zones.ts`).
 
 #### Pickup
 

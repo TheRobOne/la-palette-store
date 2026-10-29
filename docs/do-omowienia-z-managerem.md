@@ -106,24 +106,18 @@ Zapytania spoza stref przyjmujemy z całej Polski.
 
 ### 4.1 Strefy, kody i ceny
 
-- Ile stref i jakie ceny? Na testy są dwie przykładowe: Strefa 1 (okolice lokalu, też kody spoza
-  Krakowa, np. Niepołomice, Wieliczka) — 30 zł, Strefa 2 (reszta Krakowa) — 50 zł. Na produkcji
-  przykładowych stref nie ma, a dostawa startuje **wyłączona**: obsługa wpisuje prawdziwe strefy
-  i dopiero wtedy włącza dostawę w Harmonogramie.
-- **Listy kodów**: w Krakowie kody są przypisane do ulic, więc strefa „do 10 km” to kilkaset
-  kodów. Propozycja: przygotujemy listy z oficjalnego spisu kodów Poczty Polskiej po dzielnicach
-  Krakowa i gminach wokół lokalu; manager/kuchnia przeglądają i zatwierdzają, obsługa wkleja je
-  w panelu. Prostszy start: Strefa 1 = najbliższe okolice, Strefa 2 = cały Kraków, reszta na
-  zapytanie. Który wariant?
-- **Gotowa propozycja z OpenStreetMap**: pierścienie do 5 km (182 kody) i 5–10 km (438 kodów)
-  wokół lokalu, z raportem kodów granicznych — [strefy-dostawy/](strefy-dostawy/README.md).
-  Do decyzji: wiejskie kody 32-010, 32-091, 32-086, 32-087 obejmują całe gminy (bliskie
-  Raciborowice i dalekie wsie mają ten sam kod), więc są w całości w strefie 5–10 km.
+- **Ustalone 29.10.2026**: dwie strefy wokół lokalu, z OpenStreetMap — „Strefa 1 (do 5 km)”
+  30 zł (182 kody) i „Strefa 2 (5–10 km)” 50 zł (437 kodów); dalej „na zapytanie”. Sklep
+  zakłada je przy pierwszym uruchomieniu, także na produkcji, z dostawą od razu włączoną.
+  Listy, metoda i raport kodów granicznych: [strefy-dostawy/](strefy-dostawy/README.md).
+- Do wiadomości: wiejskie kody 32-010, 32-091, 32-086, 32-087 obejmują całe gminy (bliskie
+  Raciborowice i dalekie wsie mają ten sam kod), więc są w całości w strefie 5–10 km. Kody
+  graniczne i pominięte (mało adresów w OSM) obsługa może przenieść lub dopisać w panelu.
 - Czy któraś strefa ma wyższą minimalną wartość zamówienia niż 100 zł?
 
 | Ustawienie | Domyślnie | Decyzja |
 |---|---|---|
-| Strefy i ceny | 2 przykładowe (30 zł / 50 zł) | … |
+| Strefy i ceny | do 5 km 30 zł / 5–10 km 50 zł | ustalone 29.10.2026 |
 | Minimum dla strefy | brak (obowiązuje 100 zł) | … |
 | Darmowa dostawa od kwoty | wyłączona | … |
 | Maks. dostaw w jednym oknie (kierowca) | 2 | … |
