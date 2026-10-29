@@ -149,7 +149,62 @@ Zapytania spoza stref przyjmujemy z całej Polski.
 
 **Decyzja:** …
 
-## 5. Na później (bez pilności)
+## 5. Kody rabatowe
+
+Klient wpisuje kod w koszyku. Rabat widać w koszyku, w zamówieniu, na potwierdzeniu, w mailach
+i na liście zapytań w panelu.
+
+### Jak założyć kod (panel → Promocje → Utwórz)
+
+1. Typ: **kwota stała na całe zamówienie** (np. 30 zł), waluta PLN. Kwota jest **brutto** — sklep
+   sam włącza „Tax inclusive” przy zakładaniu; nie wyłączaj go (inaczej klient dostanie o VAT
+   więcej, np. 32,40 zł zamiast 30 zł).
+2. **Kod wielkimi literami**, bez spacji i polskich znaków, np. `WESELE30`. Klient może wpisać
+   małymi — sklep zamieni na wielkie. Kod zapisany małymi literami nie zadziała.
+3. Opcjonalnie: daty ważności i limit użyć (kampania / budżet).
+4. Po zapisaniu, na stronie promocji, w ramce **„Minimalna wartość koszyka”** wpisz, od jakiej
+   kwoty produktów (przed rabatem, bez dostawy) kod działa — **wyraźnie powyżej minimum
+   zamówienia**, np. równowartość trzech boksów, gdy minimum to dwa. Ramka ostrzega, gdy kwota
+   nie przekracza minimum. Tego warunku nie ma w standardowej sekcji „Warunki” panelu.
+5. Status promocji: **aktywna**.
+
+### Ustalone 29.10.2026
+
+- **Zwykły kod na kwotę** (np. −30 zł od zamówienia). Bez osobnych kodów na dostawę.
+- **Kod ustawiamy z minimalną kwotą wyraźnie wyższą niż minimum zamówienia.** Przykład: gdy
+  minimum to równowartość dwóch boksów, kod działa dopiero od kwoty trzech boksów. Dzięki temu
+  rabat nie zepchnie zamówienia poniżej minimum.
+- Minimum zamówienia (i minimum strefy dostawy) liczymy **po rabacie**. Jeśli kod zostanie
+  ustawiony bez takiego progu i po rabacie koszyk spadnie poniżej minimum, klient nie złoży
+  zamówienia, dopóki nie doda produktów. To świadome ryzyko złego ustawienia kodu, sklep
+  tego nie poprawia.
+- Gdy klient po dodaniu kodu zmniejszy koszyk poniżej progu kodu, rabat znika, a koszyk pokazuje
+  komunikat „Kod … przestał obejmować koszyk”.
+- Darmowa dostawa od kwoty (gdy zostanie włączona) też liczy się od kwoty po rabacie.
+- **Zamówienia na zapytanie:** kod wpisany przed zapytaniem obowiązuje, jeśli nadal jest ważny
+  w chwili płatności. Gdy w międzyczasie wygaśnie albo wyczerpie się limit użyć, klient
+  zapłaci cenę bez rabatu (limit liczy się dopiero przy złożonym zamówieniu). Zaakceptowane.
+
+### Do akceptacji (teksty w sklepie, `la-palette-garden`)
+
+- Komunikaty przy kodzie (`src/catering/medusa/data/cart.ts`): „Nie znamy takiego kodu albo
+  stracił ważność.”, „Ten kod nie obejmuje Twojego koszyka — sprawdź jego warunki, np. minimalną
+  wartość zamówienia.”, „Wpisz kod rabatowy.”; w koszyku
+  (`src/catering/components/cart/CartContents.tsx`): „Kod … przestał obejmować koszyk — sprawdź
+  jego warunki, np. minimalną wartość zamówienia.”
+- Linia w mailach i podsumowaniach: „Rabat (KOD): −X zł”.
+
+### Do ustalenia
+
+- Czy kody będą reklamowane publicznie (np. „−10% na pierwsze zamówienie”)? Wtedy sprawdzić
+  z prawnikiem obowiązki z dyrektywy Omnibus (najniższa cena z 30 dni). Indywidualne kody,
+  np. dla par weselnych, zwykle tego nie wymagają.
+- Regulamin: czy kody łączą się ze sobą (dziś sklep pozwala na jeden kod naraz w koszyku, ale
+  Medusa technicznie przyjęłaby kilka) i czy kod obejmuje zamówienia na zapytanie.
+
+**Decyzja:** …
+
+## 6. Na później (bez pilności)
 
 - **Konta klientów** (historia zamówień, ponowne zamówienie, zapamiętane dane do faktury) —
   proponujemy dopiero po starcie, gdy pojawią się stali klienci firmowi. Czy są tacy już teraz?

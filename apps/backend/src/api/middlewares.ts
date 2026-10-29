@@ -23,6 +23,7 @@ import {
   StoreDeliveryQuoteQuery,
 } from './validators/catering-delivery'
 import { AdminNotificationsQuery } from './validators/notifications'
+import { AdminPromotionMinOrderValueBody } from './validators/catering-promotions'
 
 // Clarification: staging (and any non-`ALLOW_INDEXING=true` environment) is
 // public but must not be indexed by search engines — including /app (Admin).
@@ -128,6 +129,11 @@ export default defineMiddlewares({
       method: ['GET'],
       matcher: '/admin/catering/delivery-zones/match',
       middlewares: [validateAndTransformQuery(AdminDeliveryZoneMatchQuery, {})],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/catering/promotions/:id/min-order-value',
+      middlewares: [validateAndTransformBody(AdminPromotionMinOrderValueBody)],
     },
     {
       method: ['POST'],

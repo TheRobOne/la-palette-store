@@ -9,8 +9,17 @@ export type EmailItem = {
   title: string
   variant_title: string | null
   quantity: number
-  /** gross line total, PLN */
+  /** gross line total before discount codes, PLN */
   total: number
+}
+
+/** Discount codes of the order or request (apps/backend/AGENTS.md "Discount codes"). */
+export type EmailDiscount = {
+  codes: string[]
+  /** gross PLN off the products */
+  items_amount: number
+  /** gross PLN off the delivery */
+  shipping_amount: number
 }
 
 export type EmailAddress = {
@@ -51,8 +60,10 @@ export type EmailContact = {
 export type EmailOrderData = {
   term: EmailTerm
   items: EmailItem[]
-  /** gross item total, PLN (without delivery) */
+  /** gross item total after discounts, PLN (without delivery) */
   total: number
+  /** absent in data stored before discount codes existed */
+  discount?: EmailDiscount | null
   /** the venue: pickup address and the contact phone of every e-mail */
   pickup_address: EmailAddress
   fulfillment?: EmailFulfillment

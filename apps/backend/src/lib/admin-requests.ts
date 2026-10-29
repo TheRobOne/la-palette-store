@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { DISCOUNT_FIELDS, discountOf, type DiscountSource } from "./discount"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
 import { type AddressLike, bookingFulfillment } from "./request-dto"
@@ -9,7 +10,8 @@ const iso = (value: Date | string | null | undefined) =>
 
 /**
  * Requests for the Admin (contracts/admin-api.md "Requests"): booking state
- * plus contact e-mail, items and total from the cart, the fulfillment
+ * plus contact e-mail, items, total and discount codes (discount codes) from the
+ * cart, the fulfillment
  * (delivery address, zone or out of zone, cost — spec 007), sorted by the
  * nearest deadline.
  */
@@ -38,7 +40,14 @@ export async function listAdminRequests(
   const { data: carts } = cartIds.length
     ? await query.graph({
         entity: "cart",
-        fields: ["id", "email", "item_total", "items.title", "items.quantity", "shipping_address.*"],
+        fields: [
+          "id",
+          "email",
+          ...DISCOUNT_FIELDS,
+          "items.title",
+          "items.quantity",
+          "shipping_address.*",
+        ],
         filters: { id: cartIds },
       })
     : { data: [] }
@@ -53,13 +62,15 @@ export async function listAdminRequests(
     .sort((a, b) => deadlineOf(a) - deadlineOf(b))
     .map((b) => {
       const cart = cartById.get(b.cart_id) as
-        | {
+        | (Omit<DiscountSource, "items"> & {
             email?: string | null
-            item_total?: unknown
-            items?: { title?: string | null; quantity: number }[]
+            items?: ({ title?: string | null; quantity: number } & NonNullable<
+              DiscountSource["items"]
+            >[number])[]
             shipping_address?: AddressLike
-          }
+          })
         | undefined
+      const discount = discountOf(cart)
       return {
         id: b.id,
         cart_id: b.cart_id,
@@ -70,6 +81,9 @@ export async function listAdminRequests(
         email: cart?.email ?? null,
         item_total: cart?.item_total != null ? Number(cart.item_total) : null,
         items: (cart?.items ?? []).map((i) => ({ title: i.title ?? null, quantity: Number(i.quantity) })),
+        discount: discount
+          ? { codes: discount.codes, amount: discount.items_amount + discount.shipping_amount }
+          : null,
         fulfillment: bookingFulfillment(b, cart?.shipping_address),
         decided_at: iso(b.decided_at),
         order_id: b.order_id ?? null,

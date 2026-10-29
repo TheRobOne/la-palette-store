@@ -265,3 +265,42 @@ describe("delivery e-mails (unit)", () => {
   })
 })
 
+
+describe("discount codes in e-mails (unit, discount codes)", () => {
+  // items before the discount: 144 + 220 = 364; 30 zł off → 334
+  const discounted: OrderEmailData = {
+    ...order,
+    total: 334,
+    discount: { codes: ["WESELE30"], items_amount: 30, shipping_amount: 0 },
+  }
+
+  it("shows the discount line between the items and the total", () => {
+    const { html, text } = renderTemplate("order-confirmation", discounted)
+    expect(text).toContain("Box <Włoski> (duży) × 1: 220,00 zł\nRabat (WESELE30): −30,00 zł\nRazem: 334,00 zł")
+    expect(html).toContain("Rabat (WESELE30)")
+  })
+
+  it("puts the discount before the delivery and subtracts a delivery discount once", () => {
+    const delivery = {
+      method: "delivery" as const,
+      address: { address_1: "ul. Przykładowa 5/2", postal_code: "31-870", city: "Kraków", phone: null },
+      zone_name: "Strefa 2",
+      out_of_zone: false,
+      delivery_cost: 50,
+    }
+    const email = renderTemplate("order-confirmation", {
+      ...discounted,
+      fulfillment: delivery,
+      discount: { codes: ["DOSTAWA", "WESELE30"], items_amount: 30, shipping_amount: 20 },
+    })
+    expect(email.text).toContain(
+      "Rabat (DOSTAWA, WESELE30): −50,00 zł\nDostawa: 50,00 zł\nRazem: 364,00 zł"
+    )
+  })
+
+  it("leaves e-mails without a discount unchanged", () => {
+    const { text } = renderTemplate("order-confirmation", { ...order, discount: null })
+    expect(text).not.toContain("Rabat")
+    expect(text).toContain("Razem: 364,00 zł")
+  })
+})
