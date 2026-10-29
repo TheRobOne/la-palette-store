@@ -46,14 +46,18 @@ export function formatTerm(term: Pick<CateringTerm, "date" | "start" | "end">): 
 // Customer-facing messages (contracts/store-api.md §3) — `invalid_data` so
 // the complete route answers 400 with the message as is.
 
-export function missingTermError(): MedusaError {
-  return new MedusaError(MedusaError.Types.INVALID_DATA, "Wybierz termin odbioru.")
+/** "termin odbioru" / "termin dostawy" (specs/007-delivery-zones contracts §7). */
+const termLabel = (method: FulfillmentMethod) =>
+  method === "delivery" ? "termin dostawy" : "termin odbioru"
+
+export function missingTermError(method: FulfillmentMethod = "pickup"): MedusaError {
+  return new MedusaError(MedusaError.Types.INVALID_DATA, `Wybierz ${termLabel(method)}.`)
 }
 
 export function unavailableTermError(term: CateringTerm): MedusaError {
   return new MedusaError(
     MedusaError.Types.INVALID_DATA,
-    `Wybrany termin odbioru (${formatTerm(term)}) nie jest już dostępny. Wybierz inny termin.`
+    `Wybrany ${termLabel(term.method)} (${formatTerm(term)}) nie jest już dostępny. Wybierz inny termin.`
   )
 }
 

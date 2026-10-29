@@ -1,13 +1,15 @@
-import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { BigNumberInput, MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../../modules/catering"
 import type CateringModuleService from "../../modules/catering/service"
 import { parseTerm } from "../../modules/catering/scheduling/term"
 import { INVOICE_NIP_METADATA_KEY, isInvoiceRequested } from "../invoice-metadata"
+import { findOrderBooking } from "../order-booking"
 import { STOCK_LOCATION_NAME, VENUE_ADDRESS } from "../pickup"
 import type {
   EmailAddress,
   EmailContact,
+  EmailFulfillment,
   EmailInvoice,
   EmailItem,
   EmailOrderData,
@@ -43,8 +45,16 @@ type Purchase = {
   item_total?: unknown
   metadata?: Record<string, unknown> | null
   billing_address?: AddressLike
+  shipping_address?: AddressLike
   items?: LineLike[] | null
 }
+
+type BookingLike = {
+  fulfillment_method: string
+  delivery_zone_id?: string | null
+  delivery_zone_name?: string | null
+  delivery_cost?: unknown
+} | null | undefined
 
 const PURCHASE_FIELDS = [
   "email",
@@ -57,6 +67,10 @@ const PURCHASE_FIELDS = [
   "billing_address.address_1",
   "billing_address.postal_code",
   "billing_address.city",
+  "shipping_address.address_1",
+  "shipping_address.postal_code",
+  "shipping_address.city",
+  "shipping_address.phone",
   "items.title",
   "items.product_title",
   "items.variant_title",
@@ -108,6 +122,29 @@ function invoice(purchase: Purchase): EmailInvoice | null {
   }
 }
 
+/** Delivery address, zone and cost from the booking and the shipping address (spec 007). */
+function fulfillment(purchase: Purchase, booking: BookingLike): EmailFulfillment {
+  if (booking?.fulfillment_method !== "delivery") {
+    return { method: "pickup" }
+  }
+  const a = purchase.shipping_address
+  return {
+    method: "delivery",
+    address: {
+      address_1: a?.address_1 ?? "",
+      postal_code: a?.postal_code ?? "",
+      city: a?.city ?? "",
+      phone: a?.phone ?? null,
+    },
+    zone_name: booking.delivery_zone_name ?? null,
+    out_of_zone: !booking.delivery_zone_id,
+    delivery_cost:
+      booking.delivery_cost === null || booking.delivery_cost === undefined
+        ? null
+        : MathBN.convert(booking.delivery_cost as BigNumberInput).toNumber(),
+  }
+}
+
 async function pickupAddress(container: MedusaContainer): Promise<EmailAddress> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -128,7 +165,8 @@ function common(
   purchase: Purchase,
   term: EmailOrderData["term"],
   address: EmailAddress,
-  admin: string
+  admin: string,
+  booking: BookingLike
 ): EmailOrderData {
   const links = emailLinks()
   const notes = purchase.metadata?.order_notes
@@ -137,6 +175,7 @@ function common(
     items: items(purchase.items),
     total: num(purchase.item_total),
     pickup_address: address,
+    fulfillment: fulfillment(purchase, booking),
     contact: contact(purchase),
     invoice: invoice(purchase),
     notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
@@ -167,7 +206,8 @@ export async function loadOrderEmailData(
       order,
       { date: term.date, start: term.start, end: term.end },
       await pickupAddress(container),
-      `${emailLinks().admin}/orders/${order.id}`
+      `${emailLinks().admin}/orders/${order.id}`,
+      await findOrderBooking(container, order.id)
     ),
     order_id: order.id,
     display_id: Number(order.display_id),
@@ -198,7 +238,8 @@ export async function loadRequestEmailData(
     cart,
     { date: booking.date, start: booking.start_time, end: booking.end_time },
     await pickupAddress(container),
-    `${emailLinks().admin}/pickup-requests`
+    `${emailLinks().admin}/pickup-requests`,
+    booking
   )
   return {
     ...base,

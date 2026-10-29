@@ -76,3 +76,24 @@ describe("assertValidSchedule — on-request fields (spec 005)", () => {
     expect(() => assertValidSchedule({ ...valid, ...patch })).toThrow(message)
   })
 })
+
+describe("assertValidSchedule — per-window limit (spec 007)", () => {
+  it("accepts a limit ≥ 1 or null for delivery, null or omitted for pickup", () => {
+    expect(() => assertValidSchedule({ ...valid, max_orders_per_window: 2 }, "delivery")).not.toThrow()
+    expect(() => assertValidSchedule({ ...valid, max_orders_per_window: null }, "delivery")).not.toThrow()
+    expect(() => assertValidSchedule({ ...valid, max_orders_per_window: null }, "pickup")).not.toThrow()
+    expect(() => assertValidSchedule(valid, "pickup")).not.toThrow()
+  })
+
+  it.each([0, -1, 1.5])("rejects %p for delivery", (value) => {
+    expect(() => assertValidSchedule({ ...valid, max_orders_per_window: value }, "delivery")).toThrow(
+      /Maks\. dostaw w jednym oknie/
+    )
+  })
+
+  it("refuses a limit for pickup", () => {
+    expect(() => assertValidSchedule({ ...valid, max_orders_per_window: 2 }, "pickup")).toThrow(
+      "Limit zamówień w jednym oknie dotyczy tylko dostaw."
+    )
+  })
+})

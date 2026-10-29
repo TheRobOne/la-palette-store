@@ -32,7 +32,9 @@ Content-Type: application/json
 ## Transactional e-mails (spec 006)
 
 Spec: [specs/006-transactional-emails](../../specs/006-transactional-emails/) — catalogue of
-templates, subjects and required content in `contracts/emails.md`.
+templates, subjects and required content in `contracts/emails.md`; delivery wording in
+[specs/007-delivery-zones/contracts/emails.md](../../specs/007-delivery-zones/contracts/emails.md)
+(template data `fulfillment`; absent in older stored data = pickup).
 
 - **Sending**: Medusa's Notification Module with our provider `src/modules/resend` (channel
   `email`, registered in `medusa-config.ts`). Every e-mail is a notification row: template, data,
@@ -84,7 +86,7 @@ Every call needs `x-publishable-api-key`. Amounts are gross PLN in major units (
         "enabled": true,
         "address": { "address_1": "ul. Gustawa Morcinka 40", "postal_code": "31-762", "city": "Kraków", "phone": "+48 734 431 447" }
       },
-      "delivery": { "enabled": false }
+      "delivery": { "enabled": true, "free_delivery_threshold": null }
     }
   }
 }
@@ -98,14 +100,20 @@ Every call needs `x-publishable-api-key`. Amounts are gross PLN in major units (
 - Code: `src/api/store/catering/order-rules/route.ts`, `src/lib/order-rules.ts`,
   `src/lib/min-order-value.ts`, `src/admin/widgets/min-order-value.tsx`.
 
-### Fulfillment — in-person pickup only
+### Fulfillment — pickup or city delivery (spec 007)
 
-Pickup at the venue is the only option at launch (delivery zones deferred). Setup is idempotent
-in `src/scripts/setup-pickup.ts` (run by `seed.ts` on every deploy; names in `src/lib/pickup.ts`
-are lookup keys — don't rename them in the Admin).
+Two shipping options. Setup is idempotent in `src/scripts/setup-pickup.ts` and
+`src/scripts/setup-delivery.ts` (both run by `seed.ts` on every deploy; names in
+`src/lib/pickup.ts` are lookup keys — don't rename them in the Admin). **Recognise options by
+`type.code` (`"pickup"` / `"delivery"`), never by name or list position.**
+With `APP_ENV=production` the delivery schedule is created **disabled** and without example
+zones; elsewhere the two example zones are created once, with the schedule, so deleting them
+sticks.
 
-1. `sdk.store.fulfillment.listCartOptions({ cart_id })` → one option, `name: "Odbiór osobisty"`,
-   `amount: 0`, `type.code: "pickup"`. Recognise pickup by `type.code`, not by name.
+#### Pickup
+
+1. `sdk.store.fulfillment.listCartOptions({ cart_id })` → `name: "Odbiór osobisty"`,
+   `amount: 0`, `type.code: "pickup"`.
 2. `sdk.store.cart.addShippingMethod(cartId, { option_id })`.
 3. **Do not fill `shipping_address`.** Medusa 2.21.1 (verified in core-flows source and the
    integration test) needs no street address to list pickup options or complete the cart. On cart
@@ -113,6 +121,35 @@ are lookup keys — don't rename them in the Admin).
    PL geo zone matches; the order keeps that address with all other fields `null`. The pickup
    address comes from `order_rules.fulfillment.pickup.address`. `billing_address` stays free for
    invoice data.
+
+#### Delivery
+
+Full contract: [specs/007-delivery-zones/contracts/store-api.md](../../specs/007-delivery-zones/contracts/store-api.md).
+
+- Zones are lists of full postal codes (`XX-XXX`) with a gross price and an optional minimum,
+  managed in Admin → Settings → "Strefy dostawy" (catering module tables, not Medusa geo zones —
+  research R-01). One free-delivery threshold for all zones (store metadata
+  `catering_free_delivery_threshold`, widget next to the minimum order value; empty = off).
+- `GET /store/catering/delivery-quote?postal_code=XX-XXX[&cart_id]` (uncached) → `status`
+  `in_zone` / `out_of_zone` / `invalid`, `amount`, effective `min_order_value`; an unknown
+  `cart_id` is a 404.
+- Option `name: "Dostawa"`, `type.code: "delivery"`, **calculated**: `listCartOptions` returns it
+  without `amount`; price it with `sdk.store.fulfillment.calculate(optionId, { cart_id })`. The
+  `catering-delivery` fulfillment provider returns the amount a pricing hook
+  (`src/workflows/hooks/delivery-pricing-context.ts`) computes from the cart's postal code, so
+  Medusa re-prices the method on every cart update.
+- Fill `shipping_address` (`address_1`, `postal_code`, `city`, `phone`, `country_code: "pl"`) for
+  delivery only; `catering_term.method = "delivery"` with a window from
+  `/store/catering/slots?method=delivery` (own windows, lead time, blocks and a per-window
+  driver limit; daily capacity shared with pickup).
+- Out of zone → the on-request path below on any window; staff confirm with a delivery cost and
+  the cart is re-priced to it before payment (the e-mail "zapłać do …" goes out after that). The
+  agreed cost stays for that postal code even if staff later add it to a zone; another code is
+  priced normally. A request whose zone was deleted after confirmation cannot be paid until staff
+  price it again.
+- Paying a request stores the delivery cost and zone the customer actually pays. A cart completed
+  on the standard path (the customer changed the term or the postal code) cancels its open
+  requests, so their place is not counted twice.
 
 ### Optional company invoice
 
@@ -150,8 +187,9 @@ await sdk.store.cart.update(cartId, {
 
 Full contract: [specs/004-pickup-scheduling/contracts/store-api.md](../../specs/004-pickup-scheduling/contracts/store-api.md).
 
-- `GET /store/catering/slots?from=YYYY-MM-DD&to=YYYY-MM-DD` (≤ 62 days, uncached) → every date with
-  `available`, `reason` and its windows.
+- `GET /store/catering/slots?from=YYYY-MM-DD&to=YYYY-MM-DD[&method=pickup|delivery]` (≤ 62 days,
+  uncached) → every date with `available`, `reason` and its windows (each with `reason`: `null`,
+  `full`, `window_full` — delivery limit reached — or `lead_time`).
 - The chosen window goes to `cart.metadata.catering_term = { method: "pickup", date, start, end }`
   (copied from a returned window). Nothing is reserved until completion.
 - Completion re-checks the term and takes a place in the kitchen's daily capacity under a per-date
@@ -181,8 +219,9 @@ Full contract: [specs/005-on-request-terms/contracts/store-api.md](../../specs/0
 
 Order rules are checked in the single `completeCartWorkflow.hooks.validate` handler
 (`src/workflows/hooks/complete-cart-validate.ts` — a hook takes only one handler, so add every
-future rule there), in this order: minimum order value → invoice data → pickup term → (on-request window only)
-confirmed request / payment deadline / cart unchanged since the request. The term step
+future rule there), in this order: minimum order value → invoice data → term → method and, for
+delivery, address, postal code, zone minimum, delivery amount → (on-request window or out-of-zone
+delivery) confirmed request / payment deadline / cart unchanged since the request. The term step
 books the place (`src/lib/pickup-booking.ts`, lock key `catering:capacity:<date>`, also used by
 staff reschedules) and its compensation removes the booking if a later step fails. A rejected cart
 answers **400**:
@@ -196,6 +235,13 @@ On-request errors: `Ten termin wymaga potwierdzenia kuchni — wyślij zapytanie
 
 Term errors: `Wybierz termin odbioru.`, `Wybrany termin odbioru (20.10.2026, 11:00–12:00) nie jest
 już dostępny. Wybierz inny termin.`, `Nie udało się zarezerwować terminu. Spróbuj ponownie za chwilę.`
+(delivery carts: "termin dostawy").
+
+Delivery errors (spec 007 §7): `Uzupełnij adres dostawy: <missing fields>.`,
+`Podaj poprawny kod pocztowy (XX-XXX).`, `Wybierz ponownie sposób odbioru lub dostawy.`,
+`Koszt dostawy się zmienił — sprawdź koszyk i spróbuj ponownie.`,
+`Minimalna wartość zamówienia z dostawą pod ten adres to <X>. Dodaj produkty za co najmniej <Y>.`,
+`Dostawa pod ten adres wymaga potwierdzenia kuchni — wyślij zapytanie.`
 
 `message` is Polish and customer-readable — show it as is. Payment errors keep Medusa's default
 (200 with `type: "cart"` and `error`).

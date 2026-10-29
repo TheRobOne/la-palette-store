@@ -13,6 +13,18 @@ describe("releasePickupBooking (unit, no database)", () => {
     expect(deleteBookings).toHaveBeenCalledWith("bkg_123")
   })
 
+  it("restores the requests a standard completion superseded", async () => {
+    const deleteBookings = jest.fn()
+    const updateBookings = jest.fn()
+    const superseded = [{ id: "bkg_req", status: "confirmed" as const }]
+    await releasePickupBooking(
+      { created: "bkg_123", superseded },
+      containerWith({ deleteBookings, updateBookings })
+    )
+    expect(deleteBookings).toHaveBeenCalledWith("bkg_123")
+    expect(updateBookings).toHaveBeenCalledWith(superseded)
+  })
+
   it("returns a paid request to confirmed (spec 005)", async () => {
     const updateBookings = jest.fn()
     await releasePickupBooking(

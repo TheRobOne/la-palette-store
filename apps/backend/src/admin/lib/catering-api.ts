@@ -42,16 +42,19 @@ export const WEEKDAYS = [
 /** Polish labels for the availability reasons used as reschedule warnings. */
 export const REASON_LABELS: Record<string, string> = {
   full: "dzień pełny",
+  window_full: "okno pełne (limit dostaw)",
   blocked: "dzień zablokowany",
-  closed: "poza godzinami odbioru",
+  closed: "poza oknami odbioru/dostawy",
   lead_time: "za krótki czas wyprzedzenia",
   beyond_horizon: "poza zakresem rezerwacji",
   past: "termin w przeszłości",
-  disabled: "odbiory wyłączone",
+  disabled: "odbiory/dostawy wyłączone",
 }
 
+export type FulfillmentMethod = "pickup" | "delivery"
+
 export type Schedule = {
-  method: "pickup"
+  method: FulfillmentMethod
   is_enabled: boolean
   lead_time_hours: number
   booking_horizon_days: number
@@ -60,6 +63,8 @@ export type Schedule = {
   request_lead_time_hours: number
   request_response_hours: number
   request_payment_hours: number
+  // delivery only (spec 007); null = no limit, always null for pickup
+  max_orders_per_window: number | null
   windows: { weekday: number; start: string; end: string; requires_confirmation?: boolean }[]
 }
 
@@ -76,6 +81,16 @@ export type PickupRequest = {
   items: { title: string | null; quantity: number }[]
   decided_at: string | null
   order_id: string | null
+  // spec 007: address/phone null for pickup; out_of_zone = staff set the delivery cost
+  fulfillment: {
+    method: FulfillmentMethod
+    address: string | null
+    phone: string | null
+    postal_code: string | null
+    zone_name: string | null
+    out_of_zone: boolean
+    delivery_cost: number | null
+  }
 }
 
 export const REQUEST_STATUS_LABELS: Record<PickupRequest["status"], string> = {
@@ -106,7 +121,7 @@ export const formatDateTime = (iso: string | null) =>
 export type BlockedDateDto = {
   id: string
   date: string
-  method: "pickup" | null
+  method: FulfillmentMethod | null
   reason: string | null
   // days blocked together as a period share it; null = a single day
   period_id: string | null

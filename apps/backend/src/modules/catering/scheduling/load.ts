@@ -3,13 +3,14 @@ import { CATERING_MODULE } from ".."
 import { CAPACITY_STATUSES } from "../models/booking"
 import type { FulfillmentMethod } from "../models/fulfillment-schedule"
 import type CateringModuleService from "../service"
-import type { ScheduleInputs } from "./availability"
+import { windowKey, type ScheduleInputs } from "./availability"
 
 /**
  * Loads everything computeAvailability/checkTerm need for `method` and the
  * dates [from, to] in five small queries. Bookings are counted per date
- * across all methods (kitchen-wide capacity); `excludeBookingIds` lets a
- * reschedule ignore the order's own booking.
+ * across all methods (kitchen-wide capacity) and per window for `method`
+ * only (the delivery limit, spec 007); `excludeBookingIds` lets a reschedule
+ * ignore the order's own booking.
  */
 export async function loadSchedulingContext(
   container: MedusaContainer,
@@ -36,14 +37,20 @@ export async function loadSchedulingContext(
     catering.listBlockedDates({ date: { $gte: from, $lte: to } }),
     catering.listBookings(
       { status: CAPACITY_STATUSES, date: { $gte: from, $lte: to } },
-      { select: ["id", "date"] }
+      { select: ["id", "date", "start_time", "end_time", "fulfillment_method"] }
     ),
   ])
 
   const bookingsPerDate: Record<string, number> = {}
+  const bookingsPerWindow: Record<string, number> = {}
   for (const booking of bookings) {
-    if (!excludeBookingIds.includes(booking.id)) {
-      bookingsPerDate[booking.date] = (bookingsPerDate[booking.date] ?? 0) + 1
+    if (excludeBookingIds.includes(booking.id)) {
+      continue
+    }
+    bookingsPerDate[booking.date] = (bookingsPerDate[booking.date] ?? 0) + 1
+    if (booking.fulfillment_method === method) {
+      const key = windowKey(booking.date, booking.start_time, booking.end_time)
+      bookingsPerWindow[key] = (bookingsPerWindow[key] ?? 0) + 1
     }
   }
 
@@ -70,6 +77,8 @@ export async function loadSchedulingContext(
       fulfillment_method: b.fulfillment_method ?? null,
     })),
     bookingsPerDate,
+    bookingsPerWindow,
+    maxOrdersPerWindow: schedule?.max_orders_per_window ?? null,
     // no settings row yet → nothing can be booked
     dailyCapacity: settings[0]?.daily_capacity ?? 0,
   }

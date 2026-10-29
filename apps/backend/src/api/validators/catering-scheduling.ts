@@ -60,6 +60,7 @@ export const AdminScheduleBody = z.object({
   request_lead_time_hours: z.number().int().optional(),
   request_response_hours: z.number().int().optional(),
   request_payment_hours: z.number().int().optional(),
+  max_orders_per_window: z.number().int().nullable().optional(),
   windows: z.array(
     z.object({
       weekday: z.number().int(),

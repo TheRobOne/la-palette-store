@@ -20,6 +20,10 @@ type Booking = {
   previous_start_time: string | null
   previous_end_time: string | null
   rescheduled_at: string | null
+  // spec 007
+  fulfillment_method: "pickup" | "delivery"
+  delivery_zone_name: string | null
+  delivery_cost: number | string | null
 }
 
 const isoWeekday = (date: string) => {
@@ -29,9 +33,10 @@ const isoWeekday = (date: string) => {
 }
 
 /**
- * Order sidebar: the pickup term, its previous value after a reschedule and
- * the "Zmień termin" form; rule breaks are shown as warnings staff can
- * override (specs/004-pickup-scheduling US4, US5).
+ * Order sidebar: the pickup or delivery term, its previous value after a
+ * reschedule and the "Zmień termin" form; rule breaks are shown as warnings
+ * staff can override (specs/004-pickup-scheduling US4, US5). Delivery orders
+ * also show the address, zone and cost (specs/007-delivery-zones).
  */
 const OrderPickupTermWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
   const [booking, setBooking] = useState<Booking | null>(null)
@@ -66,7 +71,7 @@ const OrderPickupTermWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
     setWarnings([])
     if (!schedule) {
       const { schedule } = await adminFetch<{ schedule: Schedule }>(
-        "/admin/catering/schedule?method=pickup"
+        `/admin/catering/schedule?method=${booking?.fulfillment_method ?? "pickup"}`
       )
       setSchedule(schedule)
     }
@@ -110,7 +115,9 @@ const OrderPickupTermWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
-        <Heading level="h2">Termin odbioru</Heading>
+        <Heading level="h2">
+          {booking?.fulfillment_method === "delivery" ? "Termin dostawy" : "Termin odbioru"}
+        </Heading>
         {booking?.status === "active" && !editing && (
           <Button size="small" variant="secondary" onClick={startEditing}>
             Zmień termin
@@ -124,6 +131,18 @@ const OrderPickupTermWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
             {formatPlDate(booking.date)}, {booking.start_time}–{booking.end_time}
             {booking.status === "canceled" ? " (anulowane)" : ""}
           </Text>
+          {booking.fulfillment_method === "delivery" && (
+            <Text size="small" className="text-ui-fg-subtle">
+              Dostawa: {order.shipping_address?.address_1}, {order.shipping_address?.postal_code}{" "}
+              {order.shipping_address?.city}
+              {order.shipping_address?.phone ? ` · tel. ${order.shipping_address.phone}` : ""}
+              {" · "}
+              {booking.delivery_zone_name ?? "poza strefą"}
+              {booking.delivery_cost !== null
+                ? ` · ${Number(booking.delivery_cost).toFixed(2).replace(".", ",")} zł`
+                : ""}
+            </Text>
+          )}
           {booking.previous_date && (
             <Text size="small" className="text-ui-fg-subtle">
               Wcześniej: {formatPlDate(booking.previous_date)}, {booking.previous_start_time}–

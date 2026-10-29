@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { loadMinOrderValue } from "../../../../lib/order-rules"
+import { loadStoreDeliveryRules } from "../../../../lib/delivery"
 import { STOCK_LOCATION_NAME } from "../../../../lib/pickup"
+import { CATERING_MODULE } from "../../../../modules/catering"
+import type CateringModuleService from "../../../../modules/catering/service"
 
 /**
  * Store-wide order rules for the storefront cart (contract:
@@ -11,13 +13,16 @@ import { STOCK_LOCATION_NAME } from "../../../../lib/pickup"
  *
  * The same minimum is enforced on cart completion
  * (src/workflows/hooks/complete-cart-validate.ts); this route only lets the
- * cart show it before checkout.
+ * cart show it before checkout. Delivery (specs/007-delivery-zones
+ * contracts/store-api.md §1) is enabled while its schedule is enabled.
  */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const catering: CateringModuleService = req.scope.resolve(CATERING_MODULE)
 
-  const [minOrderValue, { data: locations }] = await Promise.all([
-    loadMinOrderValue(req.scope),
+  const [rules, [deliverySchedule], { data: locations }] = await Promise.all([
+    loadStoreDeliveryRules(req.scope),
+    catering.listFulfillmentSchedules({ fulfillment_method: "delivery" }),
     query.graph({
       entity: "stock_location",
       fields: [
@@ -34,7 +39,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   res.status(200).json({
     order_rules: {
       currency_code: "pln",
-      min_order_value: minOrderValue,
+      min_order_value: rules.globalMinimum,
       fulfillment: {
         pickup: {
           enabled: true,
@@ -47,7 +52,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
               }
             : null,
         },
-        delivery: { enabled: false },
+        delivery: {
+          enabled: !!deliverySchedule?.is_enabled,
+          free_delivery_threshold: rules.freeThreshold,
+        },
       },
     },
   })

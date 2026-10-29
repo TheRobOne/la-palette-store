@@ -3,6 +3,8 @@ import { MedusaError } from "@medusajs/framework/utils"
 import BlockedDate from "./models/blocked-date"
 import Booking from "./models/booking"
 import CateringProductInfo from "./models/catering-product-info"
+import DeliveryZone from "./models/delivery-zone"
+import DeliveryZoneCode from "./models/delivery-zone-code"
 import FulfillmentSchedule from "./models/fulfillment-schedule"
 import SchedulingSettings from "./models/scheduling-settings"
 import WindowRule from "./models/window-rule"
@@ -45,6 +47,8 @@ class CateringModuleService extends MedusaService({
   WindowRule,
   BlockedDate,
   Booking,
+  DeliveryZone,
+  DeliveryZoneCode,
 }) {
   async createCateringProductInfos(data: CateringProductInfoInput) {
     assertQuantityRule(data)

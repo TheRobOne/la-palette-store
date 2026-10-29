@@ -2,7 +2,8 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { CATERING_MODULE } from "../modules/catering"
 import type CateringModuleService from "../modules/catering/service"
-import type { RequestSnapshot } from "../modules/catering/models/booking"
+import type { DeliveryQuote } from "../modules/catering/delivery/quote"
+import type { BookingStatus, RequestSnapshot } from "../modules/catering/models/booking"
 import {
   checkTerm,
   termRequiresConfirmation,
@@ -20,6 +21,20 @@ import {
   lockBusyError,
   unavailableTermError,
 } from "../modules/catering/scheduling/term"
+import { outOfZoneRequestError } from "./delivery-checks"
+
+/** Delivery columns of a booking (spec 007); all null for pickup. */
+export function bookingDeliveryFields(delivery: DeliveryQuote | null | undefined) {
+  if (!delivery) {
+    return {}
+  }
+  return {
+    delivery_postal_code: delivery.postal_code,
+    delivery_zone_id: delivery.zone?.id ?? null,
+    delivery_zone_name: delivery.zone?.name ?? null,
+    delivery_cost: delivery.amount,
+  }
+}
 
 /**
  * Taking a place in the kitchen's daily capacity when a cart is completed
@@ -73,9 +88,21 @@ const sameTerm = (
 
 /** What the completion hook must undo if a later workflow step fails. */
 export type BookingCompensation =
-  | { created: string }
-  | { revert: { id: string; status: "confirmed" } }
+  | { created: string; superseded?: { id: string; status: BookingStatus }[] }
+  | {
+      revert: {
+        id: string
+        status: "confirmed"
+        delivery_postal_code?: string | null
+        delivery_zone_id?: string | null
+        delivery_zone_name?: string | null
+        delivery_cost?: number | null
+      }
+    }
   | undefined
+
+/** Requests that still hold a place (spec 005); a standard completion supersedes them. */
+const OPEN_REQUEST_STATUSES: BookingStatus[] = ["requested", "confirmed"]
 
 type CartForReservation = {
   id: string
@@ -88,32 +115,40 @@ type CartForReservation = {
  * - Standard window (004): re-check the term and create an `active` booking,
  *   or accept an existing `active` booking for the same term (retried
  *   completion — neither counted twice nor deleted on failure).
- * - On-request window (spec 005, FR-003a): only a `confirmed` request within
+ * - On-request window (spec 005, FR-003a) or an out-of-zone delivery on any
+ *   window (spec 007 FR-010): only a `confirmed` request within
  *   its payment deadline whose cart still matches the snapshot can be paid;
  *   it becomes `active`. Its place is already held, so capacity is not
- *   re-checked.
+ *   re-checked. Its delivery columns take the quote the customer pays (a zone
+ *   price may have changed since sending).
+ * - A cart paid on a standard window no longer needs its open requests (the
+ *   customer changed the term or the postal code): they become `canceled` so
+ *   their place is not counted twice.
  */
 export async function reservePickupTerm(
   container: MedusaContainer,
   cart: CartForReservation,
-  term: CateringTerm
+  term: CateringTerm,
+  delivery: DeliveryQuote | null = null
 ): Promise<BookingCompensation> {
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
   return withCapacityLock(container, term.date, async () => {
-    const context = await loadSchedulingContext(container, {
-      method: term.method,
-      from: term.date,
-      to: term.date,
-    })
+    const loadContext = () =>
+      loadSchedulingContext(container, { method: term.method, from: term.date, to: term.date })
+    let context = await loadContext()
 
-    if (termRequiresConfirmation(term, context)) {
+    // An out-of-zone delivery always needs the kitchen's confirmation and a
+    // staff-set cost (spec 007 FR-010), on any window.
+    if (termRequiresConfirmation(term, context) || delivery?.status === "out_of_zone") {
       const [request] = await catering.listBookings(
         { cart_id: cart.id, requires_confirmation: true },
         { order: { created_at: "DESC" }, take: 1 }
       )
       if (!request || request.status === "requested") {
-        throw requiresConfirmationError()
+        throw delivery?.status === "out_of_zone"
+          ? outOfZoneRequestError()
+          : requiresConfirmationError()
       }
       if (request.status === "active" && sameTerm(request, term)) {
         return undefined
@@ -121,11 +156,31 @@ export async function reservePickupTerm(
       if (!canPay(request, new Date())) {
         throw paymentTimeOverError()
       }
-      if (!snapshotMatches(request.request_snapshot as RequestSnapshot, cart, term)) {
+      if (!snapshotMatches(request.request_snapshot as RequestSnapshot, cart, term, delivery)) {
         throw snapshotMismatchError()
       }
-      await catering.updateBookings({ id: request.id, status: "active" })
-      return { revert: { id: request.id, status: "confirmed" } }
+      // out of zone, but no cost agreed for this code (e.g. the zone of an
+      // in-zone request was deleted): staff must price it first
+      if (delivery?.status === "out_of_zone" && delivery.amount === null) {
+        throw outOfZoneRequestError()
+      }
+      const delivered = bookingDeliveryFields(delivery)
+      await catering.updateBookings({ id: request.id, status: "active", ...delivered })
+      return {
+        revert: {
+          id: request.id,
+          status: "confirmed",
+          ...(delivery
+            ? {
+                delivery_postal_code: request.delivery_postal_code,
+                delivery_zone_id: request.delivery_zone_id,
+                delivery_zone_name: request.delivery_zone_name,
+                delivery_cost:
+                  request.delivery_cost === null ? null : Number(request.delivery_cost),
+              }
+            : {}),
+        },
+      }
     }
 
     const existing = await catering.listBookings({ cart_id: cart.id, status: "active" })
@@ -138,19 +193,40 @@ export async function reservePickupTerm(
       await catering.deleteBookings(existing.map((b) => b.id))
     }
 
-    if (checkTerm(term, context).length > 0) {
-      throw unavailableTermError(term)
+    const openRequests = await catering.listBookings({
+      cart_id: cart.id,
+      requires_confirmation: true,
+      status: OPEN_REQUEST_STATUSES,
+    })
+    const superseded = openRequests.map((r) => ({ id: r.id, status: r.status as BookingStatus }))
+    if (superseded.length) {
+      await catering.updateBookings(
+        superseded.map(({ id }) => ({ id, status: "canceled" as const }))
+      )
+      context = await loadContext()
     }
 
-    const booking = await catering.createBookings({
-      cart_id: cart.id,
-      fulfillment_method: term.method,
-      date: term.date,
-      start_time: term.start,
-      end_time: term.end,
-      status: "active",
-    })
-    return { created: booking.id }
+    try {
+      if (checkTerm(term, context).length > 0) {
+        throw unavailableTermError(term)
+      }
+      const booking = await catering.createBookings({
+        cart_id: cart.id,
+        fulfillment_method: term.method,
+        date: term.date,
+        start_time: term.start,
+        end_time: term.end,
+        status: "active",
+        ...bookingDeliveryFields(delivery),
+      })
+      return superseded.length ? { created: booking.id, superseded } : { created: booking.id }
+    } catch (error) {
+      // the hook's compensation does not run for its own failure
+      if (superseded.length) {
+        await catering.updateBookings(superseded)
+      }
+      throw error
+    }
   })
 }
 
@@ -165,6 +241,9 @@ export async function releasePickupBooking(
   const catering: CateringModuleService = container.resolve(CATERING_MODULE)
   if ("created" in compensation) {
     await catering.deleteBookings(compensation.created)
+    if (compensation.superseded?.length) {
+      await catering.updateBookings(compensation.superseded)
+    }
   } else {
     await catering.updateBookings(compensation.revert)
   }

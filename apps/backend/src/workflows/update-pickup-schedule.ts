@@ -16,6 +16,7 @@ type Snapshot = {
     request_lead_time_hours: number
     request_response_hours: number
     request_payment_hours: number
+    max_orders_per_window: number | null
   } | null
   windows: { weekday: number; start_time: string; end_time: string; requires_confirmation: boolean }[]
   createdSettingsId?: string
@@ -25,12 +26,12 @@ type Snapshot = {
 /**
  * Replaces a method's schedule as a whole (contracts/admin-api.md Schedule):
  * settings (kitchen-wide capacity), the method's lead time/horizon/enabled
- * flag and its window list. Compensation restores the previous values.
+ * flag, the delivery per-window limit (spec 007) and its window list. Compensation restores the previous values.
  */
 const updatePickupScheduleStep = createStep(
   "update-pickup-schedule",
   async (input: UpdatePickupScheduleInput, { container }) => {
-    assertValidSchedule(input)
+    assertValidSchedule(input, input.method)
     const catering: CateringModuleService = container.resolve(CATERING_MODULE)
 
     const [[settings], [schedule], windows] = await Promise.all([
@@ -49,6 +50,7 @@ const updatePickupScheduleStep = createStep(
             request_lead_time_hours: schedule.request_lead_time_hours,
             request_response_hours: schedule.request_response_hours,
             request_payment_hours: schedule.request_payment_hours,
+            max_orders_per_window: schedule.max_orders_per_window ?? null,
           }
         : null,
       windows: windows.map((w) => ({
@@ -78,6 +80,9 @@ const updatePickupScheduleStep = createStep(
         : {}),
       ...(input.request_payment_hours !== undefined
         ? { request_payment_hours: input.request_payment_hours }
+        : {}),
+      ...(input.max_orders_per_window !== undefined
+        ? { max_orders_per_window: input.max_orders_per_window }
         : {}),
     }
     if (schedule) {

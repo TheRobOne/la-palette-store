@@ -20,6 +20,21 @@ export type EmailAddress = {
   phone: string | null
 }
 
+/**
+ * How the order is fulfilled (spec 007). Absent in data stored before
+ * delivery existed → pickup.
+ */
+export type EmailFulfillment =
+  | { method: "pickup" }
+  | {
+      method: "delivery"
+      address: EmailAddress
+      zone_name: string | null
+      out_of_zone: boolean
+      /** gross PLN; null while the kitchen has not set an out-of-zone cost */
+      delivery_cost: number | null
+    }
+
 export type EmailInvoice = {
   company: string
   nip: string
@@ -36,9 +51,11 @@ export type EmailContact = {
 export type EmailOrderData = {
   term: EmailTerm
   items: EmailItem[]
-  /** gross item total, PLN */
+  /** gross item total, PLN (without delivery) */
   total: number
+  /** the venue: pickup address and the contact phone of every e-mail */
   pickup_address: EmailAddress
+  fulfillment?: EmailFulfillment
   contact: EmailContact
   invoice: EmailInvoice | null
   notes: string | null

@@ -1,5 +1,12 @@
 import { escapeHtml, formatAmount, formatDate, formatWindow } from "./format"
-import type { EmailAddress, EmailItem, EmailOrderData, EmailTerm, RenderedEmail } from "./types"
+import type {
+  EmailAddress,
+  EmailFulfillment,
+  EmailItem,
+  EmailOrderData,
+  EmailTerm,
+  RenderedEmail,
+} from "./types"
 
 /**
  * Shared e-mail layout: one column, table-based HTML with inline styles (the
@@ -51,8 +58,16 @@ export const heading = (text: string): Block => ({
   text: `\n${text.toUpperCase()}`,
 })
 
-export const termBlock = (term: EmailTerm): Block =>
-  field("Termin odbioru:", `${formatDate(term.date)}, ${formatWindow(term.start, term.end)}`)
+export type DeliveryFulfillment = Extract<EmailFulfillment, { method: "delivery" }>
+
+/** The delivery details of an order/request, or null for pickup (also old data without them). */
+export const deliveryOf = (data: EmailOrderData): DeliveryFulfillment | null =>
+  data.fulfillment?.method === "delivery" ? data.fulfillment : null
+
+export const termBlock = (term: EmailTerm, label = "Termin odbioru:"): Block =>
+  field(label, `${formatDate(term.date)}, ${formatWindow(term.start, term.end)}`)
+
+export const deliveryTermBlock = (term: EmailTerm): Block => termBlock(term, "Dostawa:")
 
 export const addressBlock = (address: EmailAddress): Block =>
   field(
@@ -60,8 +75,26 @@ export const addressBlock = (address: EmailAddress): Block =>
     `La Palette Garden, ${address.address_1}, ${address.postal_code} ${address.city}`
   )
 
-/** Items with quantities and gross line totals, then the total. */
-export function itemsBlock(items: EmailItem[], total: number): Block {
+export const formatDeliveryAddress = (address: EmailAddress) =>
+  `${address.address_1}, ${address.postal_code} ${address.city}`
+
+/** Delivery address and the phone the driver calls (spec 007). */
+export const deliveryAddressBlocks = (delivery: DeliveryFulfillment): Block[] => [
+  field("Adres dostawy:", formatDeliveryAddress(delivery.address)),
+  ...(delivery.address.phone ? [field("Telefon:", delivery.address.phone)] : []),
+]
+
+/**
+ * Items with quantities and gross line totals, then the total. With a
+ * delivery (`deliveryCost` not undefined) a "Dostawa" line comes before the
+ * total, which then includes it; a cost not set yet (out of zone, null) is
+ * shown as pending and the total is the products only.
+ */
+export function itemsBlock(
+  items: EmailItem[],
+  total: number,
+  deliveryCost?: number | null
+): Block {
   const name = (i: EmailItem) => (i.variant_title ? `${i.title} (${i.variant_title})` : i.title)
   const rows = items
     .map(
@@ -71,25 +104,58 @@ export function itemsBlock(items: EmailItem[], total: number): Block {
         `<td style="padding:6px 0;border-bottom:1px solid ${BRAND.border};text-align:right;white-space:nowrap">${escapeHtml(formatAmount(i.total))}</td></tr>`
     )
     .join("")
+  const delivery =
+    deliveryCost === undefined
+      ? null
+      : deliveryCost === null
+        ? "do potwierdzenia przez kuchnię"
+        : deliveryCost === 0
+          ? "gratis"
+          : formatAmount(deliveryCost)
+  const sum = total + (deliveryCost ?? 0)
+  const totalLabel = deliveryCost === null ? "Razem (bez dostawy)" : "Razem"
   return {
     html:
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 16px">` +
       rows +
-      `<tr><td style="padding:8px 0" colspan="2"><strong>Razem</strong></td>` +
-      `<td style="padding:8px 0;text-align:right;white-space:nowrap"><strong>${escapeHtml(formatAmount(total))}</strong></td></tr></table>`,
+      (delivery
+        ? `<tr><td style="padding:6px 0;border-bottom:1px solid ${BRAND.border}" colspan="2">Dostawa</td>` +
+          `<td style="padding:6px 0;border-bottom:1px solid ${BRAND.border};text-align:right;white-space:nowrap">${escapeHtml(delivery)}</td></tr>`
+        : "") +
+      `<tr><td style="padding:8px 0" colspan="2"><strong>${totalLabel}</strong></td>` +
+      `<td style="padding:8px 0;text-align:right;white-space:nowrap"><strong>${escapeHtml(formatAmount(sum))}</strong></td></tr></table>`,
     text:
       items.map((i) => `- ${name(i)} × ${i.quantity}: ${formatAmount(i.total)}`).join("\n") +
-      `\nRazem: ${formatAmount(total)}`,
+      (delivery ? `\nDostawa: ${delivery}` : "") +
+      `\n${totalLabel}: ${formatAmount(sum)}`,
   }
 }
 
-/** Term, pickup address, items — the core of every order/request e-mail. */
-export const orderSummary = (data: EmailOrderData): Block[] => [
-  termBlock(data.term),
-  addressBlock(data.pickup_address),
-  heading("Produkty"),
-  itemsBlock(data.items, data.total),
-]
+/**
+ * Term, pickup address, items — the core of every order/request e-mail; for
+ * a delivery: window, delivery address and phone, items with the delivery cost.
+ */
+export const orderSummary = (data: EmailOrderData): Block[] => {
+  const delivery = deliveryOf(data)
+  if (delivery) {
+    return [
+      deliveryTermBlock(data.term),
+      ...deliveryAddressBlocks(delivery),
+      heading("Produkty"),
+      itemsBlock(data.items, data.total, delivery.delivery_cost),
+    ]
+  }
+  return [
+    termBlock(data.term),
+    addressBlock(data.pickup_address),
+    heading("Produkty"),
+    itemsBlock(data.items, data.total),
+  ]
+}
+
+/** Staff: the zone, or the reminder to set a cost for an out-of-zone delivery. */
+export const zoneBlock = (delivery: DeliveryFulfillment, outOfZoneNote = "poza strefą"): Block =>
+  field("Strefa:", delivery.out_of_zone ? outOfZoneNote : (delivery.zone_name ?? "—"))
 
 /** Contact footer line used in customer e-mails. */
 export const contactBlock = (address: EmailAddress): Block =>
